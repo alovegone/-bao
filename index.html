@@ -1,0 +1,3435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Prompt Studio | v12.7 Click-Select Stable</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono&family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root{ --accent:#4F46E5; --text:#1a1a1a; --bg:#fafafa; --border:#e5e5e5; --radius:16px; }
+    body{ font-family:'Plus Jakarta Sans','Noto Sans SC',sans-serif; background:var(--bg); color:var(--text); overflow-x: hidden; scroll-behavior: smooth; }
+    #sidebarContainer { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 280px; }
+    #sidebarContainer.is-collapsed { width: 60px; }
+    #sidebarContainer.is-collapsed .hide-on-collapse { display: none; }
+    #sidebarContainer.is-collapsed aside { padding: 1.5rem 0.5rem; align-items: center; }
+    #sidebarOutline { max-height: calc(100vh - 420px); overflow-y: auto; scrollbar-width: thin; }
+    #sidebarOutline::-webkit-scrollbar { width: 4px; }
+    #sidebarOutline::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    
+    .outline-item { border-left: 3px solid transparent; transition: all 0.2s; cursor: pointer; user-select: none; position: relative; }
+    .outline-item:hover { background: #f8fafc; border-left-color: #cbd5e1; }
+    .outline-active { background: #eef2ff !important; border-left-color: var(--accent) !important; }
+    
+    .progress-bar-container { width: 100%; height: 3px; background: #f1f5f9; border-radius: 10px; margin-top: 6px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0%; transition: all 0.5s ease; border-radius: 10px; }
+    .progress-processing { background: #3b82f6; width: 60%; animation: pulse-width 2s infinite ease-in-out; }
+    .progress-completed { background: #22c55e; width: 100% !important; }
+    @keyframes pulse-width { 0% { opacity: 0.6; width: 40%; } 50% { opacity: 1; width: 80%; } 100% { opacity: 0.6; width: 40%; } }
+
+    .card-pro{ background:#fff; border:1px solid var(--border); border-radius:var(--radius); transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+    .card-focus-highlight { border-color: var(--accent) !important; box-shadow: 0 0 0 4px rgba(79,70,229,0.15) !important; transform: scale(1.01); }
+    .input-flat{ width:100%; padding:.75rem; background:#fdfdfd; border:1px solid #eee; border-radius:14px; font-size:.875rem; outline:none; }
+    .input-flat:focus{ border-color:var(--accent); background:#fff; box-shadow:0 0 0 3px rgba(79,70,229,.12); }
+    
+    /* 标签样式维持 v12.5 */
+    .tag-pill{ display:inline-flex; align-items:center; gap:.35rem; padding:.18rem .5rem; background:rgba(79,70,229,0.08); color:rgba(79,70,229,1); border:1px solid rgba(79,70,229,0.15); border-radius:10px; font-size:11px; font-weight:700; user-select:none; }
+    
+    /* 【新增】平铺点选按钮样式 */
+    .preset-chip { cursor: pointer; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; border: 1px solid #eee; background: #f8fafc; color: #64748b; transition: all 0.2s; user-select: none; }
+    .preset-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .preset-chip.active { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 4px 10px -2px rgba(79,70,229,0.3); }
+
+    .nav-glass{ background:rgba(255,255,255,0.82); backdrop-filter:blur(10px); border-bottom:1px solid #eee; }
+    .editor-container{ background:#0d0d0d; border-radius:18px; margin-top:1rem; overflow:hidden; display:none; animation: slideIn .15s ease; }
+    .editor-container.is-open{ display:block; }
+    @keyframes slideIn{ from{transform:translateY(-5px);opacity:0;} to{transform:translateY(0);opacity:1;} }
+    .editor-textarea{ width:100%; height:12rem; padding:1.1rem 1.25rem; background:transparent; color:#e0e0e0; font-family:'JetBrains Mono', monospace; font-size:13px; line-height:1.7; outline:none; resize:none; }
+    .modal{ display:none; }
+    .modal.is-open{ display:flex; }
+    .no-scrollbar::-webkit-scrollbar{ display:none; }
+    #chatWidget { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 200; display: flex; flex-direction: column; align-items: flex-end; }
+    #chatToggle { width: 56px; height: 56px; border-radius: 28px; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 10px 25px -5px rgba(79,70,229,0.4); }
+    #chatPanel { width: 360px; height: 500px; background: white; border-radius: 24px; box-shadow: 0 20px 50px -12px rgba(0,0,0,0.15); margin-bottom: 1rem; display: none; flex-direction: column; overflow: hidden; border: 1px solid #eee; border-bottom: 4px solid var(--accent); }
+    #chatPanel.is-open { display: flex; animation: chatUp 0.3s ease; }
+    .msg-user { align-self: flex-end; background: var(--accent); color: white; border-radius: 18px 18px 4px 18px; padding: 0.75rem 1rem; font-size: 13px; max-width: 85%; }
+    .msg-ai { align-self: flex-start; background: #f1f5f9; color: #334155; border-radius: 18px 18px 18px 4px; padding: 0.75rem 1rem; font-size: 13px; max-width: 85%; }
+    /* 拖拽占位符样式 */
+    .sortable-ghost { opacity: 0.4; background: #eef2ff !important; border: 2px dashed var(--accent) !important; }
+    .generated-thumb { position: relative; flex-shrink: 0; align-self: flex-end; --thumb-ratio: 16 / 9; width: 120px; height: 96px; }
+    .thumb-image-btn { position: absolute; right: 0; bottom: 0; height: 96px; width: auto; max-width: 120px; min-width: 54px; aspect-ratio: var(--thumb-ratio); border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #f8fafc; cursor: zoom-in; }
+    .thumb-image-btn img { width: 100%; height: 100%; object-fit: contain; background: #f8fafc; }
+    .thumb-upload-drop { position: absolute; right: 0; bottom: 0; width: 96px; height: 96px; border-radius: 12px; border: 1.5px dashed #cbd5e1; background: #f8fafc; color: #64748b; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; font-size: 10px; font-weight: 700; line-height: 1.3; text-align: center; padding: 8px; }
+    .generated-thumb.is-dragover .thumb-upload-drop { border-color: var(--accent); background: #eef2ff; color: var(--accent); }
+    .generated-thumb:not(.has-image) .thumb-image-btn { display: none; }
+    .generated-thumb:not(.has-image) .thumb-hover-preview { display: none; }
+    .generated-thumb:not(.has-image) [data-action="clear-image"] { display: none; }
+    .generated-thumb.has-image .thumb-upload-drop { display: none; }
+    .thumb-hover-preview { position: fixed; left: 50%; top: 50%; width: auto; height: auto; max-width: min(72vw, 900px); max-height: min(72vh, 680px); border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 18px 40px rgba(15,23,42,0.2); background: #fff; opacity: 0; transform: translate(-50%, -50%) scale(0.96); pointer-events: none; transition: opacity .18s ease, transform .18s ease; z-index: 400; }
+    .thumb-hover-preview img { width: auto; height: auto; display: block; object-fit: contain; background: #f8fafc; max-width: min(72vw, 900px); max-height: min(72vh, 680px); }
+    .generated-thumb:hover .thumb-hover-preview { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    .content-lines { height: 96px; overflow-y: auto; border: 1px solid #eee; border-radius: 14px; background: #fdfdfd; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .content-line-row { display: flex; align-items: center; gap: 6px; }
+    .content-line-input { width: 100%; border: 1px solid #e5e7eb; border-radius: 10px; padding: 6px 8px; font-size: 12px; color: #475569; outline: none; background: #fff; }
+    .content-line-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(79,70,229,.12); }
+    .content-line-play { flex-shrink: 0; min-width: 58px; padding: 6px 8px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; font-size: 11px; font-weight: 700; color: #475569; }
+    .content-line-play:disabled { opacity: .45; cursor: not-allowed; }
+    .content-line-reconvert { flex-shrink: 0; min-width: 44px; padding: 6px 8px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 11px; font-weight: 700; color: #64748b; }
+    .content-line-reconvert:hover { background: #f1f5f9; }
+    .content-line-reconvert.hidden { display: none; }
+    .tts-audio { width: 100%; height: 30px; }
+    @media (max-width: 1023px) {
+      .thumb-hover-preview { left: auto; right: 0; top: calc(100% + 10px); }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <nav class="nav-glass sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-2 select-none">
+        <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-lg italic shadow-lg shadow-indigo-100">S</div>
+        <span class="font-bold tracking-tight text-slate-800">Prompt Studio <span class="text-indigo-600 opacity-50">12.7</span></span>
+      </div>
+      <div class="flex items-center gap-1 px-2 py-1 bg-slate-50 border rounded-full hover:bg-slate-100 transition-colors">
+        <select id="apiPresetSelect" class="bg-transparent outline-none cursor-pointer text-[11px] font-bold text-slate-500 pl-2"></select>
+        <span id="apiStatusDot" class="w-1.5 h-1.5 rounded-full bg-slate-300 mx-1"></span>
+        <button data-action="open-list" data-type="api" class="p-1 text-slate-400 hover:text-indigo-600"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path></svg></button>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <button data-action="open-path-modal" class="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-600 transition-all">📁 路径设置</button>
+      <button data-action="open-tts-modal" class="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-600 transition-all">🎙️ 语音设置</button>
+      <button data-action="open-comfy-modal" class="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-600 transition-all">⚙️ 管理ComfyUI</button>
+      <button data-action="add-card" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 transition-all">+ 新增卡片</button>
+      <button data-action="open-segment-modal" class="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-600 transition-all">✂️ AI分词</button>
+      <button data-action="open-segment-log-modal" class="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-600 transition-all">🧾 分词日志</button>
+      <button data-action="open-batch-polish-modal" class="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-700 transition-all">⚡ 批量润色</button>
+      <button data-action="open-batch-tts-modal" class="px-5 py-2 bg-sky-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-sky-700 transition-all">🔊 批量语音</button>
+      <button data-action="open-batch-image-modal" class="px-5 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-emerald-700 transition-all">🎨 批量生图</button>
+      <button data-action="export-csv" class="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-slate-800 transition-all">导出全部结果 (CSV)</button>
+      <button data-action="open-export-images-modal" class="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-slate-800 transition-all">导出全部分镜图片</button>
+    </div>
+  </nav>
+
+  <div id="processModal" class="modal fixed inset-0 bg-black/40 items-center justify-center z-[120] backdrop-blur-sm p-4">
+    <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl">
+      <h3 id="processModalTitle" class="text-lg font-bold mb-2">批量范围设定</h3>
+      <p class="text-xs text-slate-400 mb-6">当前共有 <span id="totalCardsCount" class="text-indigo-600 font-bold">0</span> 个分镜</p>
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label class="text-[10px] font-bold text-slate-400 uppercase">起始镜号</label>
+            <input id="rangeStart" type="number" value="1" min="1" class="input-flat">
+          </div>
+          <div class="space-y-1">
+            <label class="text-[10px] font-bold text-slate-400 uppercase">结束镜号</label>
+            <input id="rangeEnd" type="number" value="1" min="1" class="input-flat">
+          </div>
+        </div>
+        <button id="confirmProcessBtn" data-action="confirm-process" class="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">确认并执行</button>
+        <button data-action="close-process-modal" class="w-full py-2 text-slate-400 text-sm font-medium">取消</button>
+      </div>
+    </div>
+  </div>
+  <div id="batchTtsModal" class="modal fixed inset-0 bg-black/40 items-center justify-center z-[121] backdrop-blur-sm p-4">
+    <div class="bg-white rounded-[2rem] p-8 w-full max-w-3xl shadow-2xl max-h-[88vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <h3 class="text-lg font-bold">批量语音转换</h3>
+          <p class="text-xs text-slate-400 mt-1">可选择分镜后批量转换；仅显示有原始文案的分镜。</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button data-action="batch-tts-select-all" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">全选</button>
+          <button data-action="batch-tts-unselect-all" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">全不选</button>
+        </div>
+      </div>
+      <div class="text-xs text-slate-500 mb-3">
+        可转分镜：<span id="batchTtsCount" class="font-bold text-sky-600">0</span>
+      </div>
+      <div id="batchTtsList" class="max-h-[42vh] overflow-y-auto space-y-2 pr-1"></div>
+      <div class="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
+        <div id="batchTtsProgressText" class="text-xs text-slate-600">待开始</div>
+        <div class="mt-2 h-2 bg-slate-200 rounded-full overflow-hidden">
+          <div id="batchTtsProgressFill" class="h-full w-0 bg-sky-500 transition-all"></div>
+        </div>
+      </div>
+      <audio id="batchTtsPreviewAudio" class="hidden" preload="none"></audio>
+      <div class="mt-4 flex flex-wrap justify-end gap-2">
+        <button data-action="close-batch-tts-modal" class="px-5 py-2 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-200">关闭</button>
+        <button data-action="batch-tts-run-selected" class="px-5 py-2 bg-sky-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-sky-700 transition-all">转换所选</button>
+        <button data-action="batch-tts-run-all" class="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md hover:bg-slate-800 transition-all">一键转换全部</button>
+        <button data-action="batch-tts-run-all-overwrite" class="px-5 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-rose-700 transition-all">一键转换全部（覆盖）</button>
+      </div>
+    </div>
+  </div>
+  <div id="comfyModal" class="modal fixed inset-0 bg-black/40 items-center justify-center z-[124] backdrop-blur-sm p-4">
+    <div class="bg-white rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-bold">ComfyUI 设置</h3>
+          <p class="text-xs text-slate-400 mt-1">上传工作流并配置提示词节点及高级参数映射（尺寸、种子、步数、CFG、模型等）。</p>
+        </div>
+        <span id="comfyCfgBadge" class="text-[10px] font-black px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 text-slate-500">未配置</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">ComfyUI URL</label>
+          <input id="comfyUrl" class="input-flat mono" placeholder="http://127.0.0.1:8188" />
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">Workflow(API) JSON</label>
+          <div class="flex gap-2">
+            <button data-action="comfy-pick-wf" class="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 transition-all">上传工作流</button>
+            <button data-action="comfy-clear-wf" class="px-4 py-2.5 bg-slate-100 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200 transition-all">清空</button>
+          </div>
+          <input id="comfyWfInput" type="file" accept=".json,application/json" class="hidden" />
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">正面文本节点</label>
+          <select id="comfyPosNode" class="input-flat"></select>
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">负面文本节点（可选）</label>
+          <select id="comfyNegNode" class="input-flat"></select>
+        </div>
+      </div>
+      <div class="mt-5 border-t border-slate-100 pt-4">
+        <div class="text-xs font-black text-slate-700 mb-2">工作流控制参数映射</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">宽度映射</label><select id="comfyMapWidth" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">宽度值</label><input id="comfyValWidth" class="input-flat" placeholder="例如 1024"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">高度映射</label><select id="comfyMapHeight" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">高度值</label><input id="comfyValHeight" class="input-flat" placeholder="例如 1024"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">种子映射</label><select id="comfyMapSeed" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">种子值</label><input id="comfyValSeed" class="input-flat" placeholder="例如 123456789"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">步数映射</label><select id="comfyMapSteps" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">步数值</label><input id="comfyValSteps" class="input-flat" placeholder="例如 30"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">CFG映射</label><select id="comfyMapCfg" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">CFG值</label><input id="comfyValCfg" class="input-flat" placeholder="例如 7"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">采样器映射</label><select id="comfyMapSampler" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">采样器值</label><input id="comfyValSampler" class="input-flat" placeholder="例如 euler"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">调度器映射</label><select id="comfyMapScheduler" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">调度器值</label><input id="comfyValScheduler" class="input-flat" placeholder="例如 normal"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">模型映射</label><select id="comfyMapModel" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">模型值</label><input id="comfyValModel" class="input-flat" placeholder="例如 xxx.safetensors"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">LoRA模型映射</label><select id="comfyMapLoraName" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">LoRA模型值</label><input id="comfyValLoraName" class="input-flat" placeholder="例如 my_lora.safetensors"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">LoRA强度映射</label><select id="comfyMapLoraStrength" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">LoRA强度值</label><input id="comfyValLoraStrength" class="input-flat" placeholder="例如 0.8"></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">LoRA Clip强度映射</label><select id="comfyMapLoraClipStrength" class="input-flat"></select></div>
+          <div class="space-y-1"><label class="text-[10px] font-bold text-slate-400 uppercase">LoRA Clip强度值</label><input id="comfyValLoraClipStrength" class="input-flat" placeholder="例如 0.8"></div>
+        </div>
+      </div>
+      <div class="mt-4 flex items-center justify-between">
+        <div class="text-[11px] text-slate-400">提示：请在 ComfyUI 里用 <span class="font-bold">Save (API Format)</span> 导出工作流；并在桌面版 Server Config 开启 CORS。</div>
+        <div class="flex gap-2">
+          <button data-action="close-comfy-modal" class="px-5 py-2 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-200">关闭</button>
+          <button data-action="comfy-save-cfg" class="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-700 transition-all">保存设置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="pathModal" class="modal fixed inset-0 bg-black/40 items-center justify-center z-[123] backdrop-blur-sm p-4">
+    <div class="bg-white rounded-[2rem] p-8 w-full max-w-3xl shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-bold">路径设置</h3>
+          <p class="text-xs text-slate-400 mt-1">统一管理所有需要文件夹路径的功能。</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">导出图片文件夹路径</label>
+          <input id="comfyExportImagePath" class="input-flat" placeholder="未设置" readonly />
+        </div>
+        <button data-action="comfy-pick-export-dir" class="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 transition-all">选择路径</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 mt-3 items-end">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">CSV 导出文件夹路径</label>
+          <input id="comfyExportCsvPath" class="input-flat" placeholder="未设置" readonly />
+        </div>
+        <button data-action="comfy-pick-csv-dir" class="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 transition-all">选择路径</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 mt-3 items-end">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">工程保存文件夹路径（图片+JSON）</label>
+          <input id="comfyProjectSavePath" class="input-flat" placeholder="未设置" readonly />
+        </div>
+        <button data-action="comfy-pick-project-dir" class="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 transition-all">选择路径</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 mt-3 items-end">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">自动保存图片文件夹路径</label>
+          <input id="comfyAutoSaveImagePath" class="input-flat" placeholder="未设置" readonly />
+        </div>
+        <button data-action="comfy-pick-auto-image-dir" class="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-indigo-600 transition-all">选择路径</button>
+      </div>
+      <div class="mt-3 flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50">
+        <label class="text-[11px] font-bold text-slate-600">自动保存图片</label>
+        <input id="comfyAutoSaveEnabled" type="checkbox" class="w-4 h-4 accent-indigo-600">
+      </div>
+      <div class="mt-4 flex justify-end gap-2">
+        <button data-action="close-path-modal" class="px-5 py-2 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-200">关闭</button>
+        <button data-action="path-save-cfg" class="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-700 transition-all">保存设置</button>
+      </div>
+    </div>
+  </div>
+  <div id="ttsModal" class="modal fixed inset-0 bg-black/40 items-center justify-center z-[122] backdrop-blur-sm p-4">
+    <div class="bg-white rounded-[2rem] p-8 w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-lg font-bold">语音设置（Edge-TTS）</h3>
+          <p class="text-xs text-slate-400 mt-1">支持音色、语速、音量、音调、边界事件、代理、超时和静音后处理。</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">语言筛选</label>
+          <select id="ttsLocaleFilter" class="input-flat"></select>
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">音色</label>
+          <select id="ttsVoiceSelect" class="input-flat"></select>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">语速（%）</label>
+          <div class="flex items-center gap-2">
+            <input id="ttsRateRange" type="range" min="-100" max="100" step="1" class="w-full">
+            <input id="ttsRateInput" type="number" min="-100" max="100" step="1" class="input-flat !w-20 !px-2 !py-1.5 text-xs" />
+          </div>
+          <div id="ttsRateLabel" class="text-[10px] text-slate-500">0%</div>
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">音量（%）</label>
+          <div class="flex items-center gap-2">
+            <input id="ttsVolumeRange" type="range" min="-100" max="100" step="1" class="w-full">
+            <input id="ttsVolumeInput" type="number" min="-100" max="100" step="1" class="input-flat !w-20 !px-2 !py-1.5 text-xs" />
+          </div>
+          <div id="ttsVolumeLabel" class="text-[10px] text-slate-500">0%</div>
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">音调（Hz）</label>
+          <div class="flex items-center gap-2">
+            <input id="ttsPitchRange" type="range" min="-100" max="100" step="1" class="w-full">
+            <input id="ttsPitchInput" type="number" min="-100" max="100" step="1" class="input-flat !w-20 !px-2 !py-1.5 text-xs" />
+          </div>
+          <div id="ttsPitchLabel" class="text-[10px] text-slate-500">0Hz</div>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+        <label class="flex items-center gap-2 text-xs text-slate-600"><input id="ttsWordBoundary" type="checkbox" class="accent-indigo-600">启用 WordBoundary</label>
+        <label class="flex items-center gap-2 text-xs text-slate-600"><input id="ttsSentenceBoundary" type="checkbox" class="accent-indigo-600">启用 SentenceBoundary</label>
+        <label class="flex items-center gap-2 text-xs text-slate-600"><input id="ttsEnableMetadata" type="checkbox" class="accent-indigo-600">返回元数据</label>
+      </div>
+      <div class="mt-4 p-4 rounded-2xl border border-slate-100 bg-slate-50/70">
+        <div class="flex items-center justify-between mb-3">
+          <label class="flex items-center gap-2 text-xs text-slate-700 font-bold">
+            <input id="ttsPostProcessEnabled" type="checkbox" class="accent-indigo-600">
+            启用语音后处理（压缩过长静音）
+          </label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="space-y-1">
+            <label class="text-[10px] font-bold text-slate-400 uppercase">静音阈值（dB）</label>
+            <input id="ttsSilenceThresholdDb" type="number" step="1" min="-80" max="-5" class="input-flat" placeholder="-42">
+            <div class="text-[10px] text-slate-400">越接近 0 越敏感，推荐 -45 ~ -30</div>
+          </div>
+          <div class="space-y-1">
+            <label class="text-[10px] font-bold text-slate-400 uppercase">静音保留时长（ms）</label>
+            <input id="ttsSilenceKeepMs" type="number" step="10" min="0" max="2000" class="input-flat" placeholder="120">
+            <div class="text-[10px] text-slate-400">超过该时长的静音会被压缩到该时长</div>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">连接超时（秒）</label>
+          <input id="ttsConnectTimeout" class="input-flat" placeholder="例如 10">
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">接收超时（秒）</label>
+          <input id="ttsReceiveTimeout" class="input-flat" placeholder="例如 60">
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">代理（可选）</label>
+          <input id="ttsProxy" class="input-flat" placeholder="例如 http://127.0.0.1:7890">
+        </div>
+      </div>
+      <div class="mt-4 flex justify-end gap-2">
+        <button data-action="close-tts-modal" class="px-5 py-2 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold hover:bg-slate-200">关闭</button>
+        <button data-action="tts-save-settings" class="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-indigo-700 transition-all">保存设置</button>
+      </div>
+    </div>
+  </div>
+  <div id="segmentModal" class="modal fixed inset-0 bg-black/40 items-center justify-center z-[125] backdrop-blur-sm p-4">
+    <div class="bg-white rounded-[2rem] p-8 w-full max-w-2xl shadow-2xl">
+      <h3 class="text-lg font-bold mb-2">AI 分词</h3>
+      <p class="text-xs text-slate-400 mb-6">选择分词预设并粘贴原文，系统会自动生成分镜卡片并填入原始文案素材。</p>
+      <div class="space-y-4">
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">分词预设</label>
+          <select id="segPresetSelect" class="input-flat"></select>
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">原始文本</label>
+          <textarea id="segSourceText" class="input-flat h-48 text-slate-700" placeholder="粘贴需要分词的文案..."></textarea>
+        </div>
+        <div class="space-y-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase">实时输出</label>
+          <textarea id="segLiveOutput" class="input-flat h-40 text-slate-700 font-mono text-xs" readonly placeholder="模型输出会在这里实时显示..."></textarea>
+        </div>
+        <div class="flex gap-3">
+          <button id="segmentRunBtn" data-action="run-segment" class="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-indigo-600 transition-all">开始分词并生成卡片</button>
+          <button id="segmentStopBtn" data-action="stop-segment" class="px-6 py-3 bg-rose-100 text-rose-600 rounded-xl font-bold disabled:opacity-50" disabled>停止生成</button>
+          <button data-action="close-segment-modal" class="px-6 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="segmentLogModal" class="modal fixed inset-0 bg-black/40 items-center justify-center z-[126] backdrop-blur-sm p-4">
+    <div class="bg-white rounded-[2rem] p-8 w-full max-w-4xl shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold">AI 分词日志</h3>
+        <div class="flex items-center gap-2">
+          <button data-action="clear-segment-logs" class="px-3 py-1.5 text-xs font-bold bg-slate-100 rounded-lg text-slate-500 hover:bg-slate-200">清空日志</button>
+          <button data-action="close-segment-log-modal" class="px-3 py-1.5 text-xs font-bold bg-slate-100 rounded-lg text-slate-500 hover:bg-slate-200">关闭</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-4">
+        <div id="segmentLogList" class="max-h-[60vh] overflow-y-auto space-y-2 pr-1"></div>
+        <div class="space-y-2">
+          <div id="segmentLogMeta" class="text-[11px] text-slate-500">请选择左侧日志查看原始结果</div>
+          <textarea id="segmentLogRaw" class="input-flat h-[52vh] font-mono text-xs text-slate-700" readonly></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex-1 flex max-w-[1600px] mx-auto w-full px-6 pt-8 gap-8 relative">
+    <div id="sidebarContainer" class="flex-shrink-0 hidden xl:block sticky top-24 h-[calc(100vh-120px)]">
+      <aside class="w-full h-full bg-white border border-slate-200 rounded-3xl p-5 flex flex-col shadow-sm">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest hide-on-collapse">STORY OUTLINE</h3>
+          <button id="toggleSidebar" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400">
+            <svg id="toggleIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path></svg>
+          </button>
+        </div>
+        <div id="sidebarOutline" class="flex-1 space-y-1 hide-on-collapse"></div>
+        <div class="mt-6 pt-6 border-t border-slate-100 space-y-4">
+            <div id="repoPanels" class="space-y-4 hide-on-collapse"></div>
+            <div class="space-y-1">
+                <button data-action="backup" class="w-full flex items-center p-2 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-xl">💾 <span class="hide-on-collapse ml-2">导出工程</span></button>
+                <button data-action="open-restore" class="w-full flex items-center p-2 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-xl">📂 <span class="hide-on-collapse ml-2">导入工程</span></button>
+                <input type="file" id="restoreInput" accept=".json" class="hidden">
+                <button data-action="open-csv" class="w-full flex items-center p-2 text-xs font-bold text-amber-600 hover:bg-amber-50 rounded-xl">📥 <span class="hide-on-collapse ml-2">导入 CSV 分镜</span></button>
+                <input type="file" id="csvInput" accept=".csv" class="hidden">
+            </div>
+        </div>
+      </aside>
+    </div>
+
+    <main class="flex-1 min-w-0 pb-20">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Workspace / Tasks</h2>
+      </div>
+      <div id="cardContainer" class="space-y-6"></div>
+    </main>
+  </div>
+
+  <div id="chatWidget">
+    <div id="chatPanel">
+      <div class="p-4 border-b flex justify-between items-center bg-slate-50/50 backdrop-blur-md">
+        <div class="flex items-center gap-2">
+            <div class="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></div>
+            <span class="text-[11px] font-black uppercase tracking-widest text-slate-600">AI Creative Copilot</span>
+        </div>
+        <button id="closeChat" class="text-slate-400 hover:text-slate-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+      </div>
+      <div id="chatHistory" class="flex-1 overflow-y-auto p-4 space-y-4 bg-white flex flex-col no-scrollbar"></div>
+      <div class="p-4 bg-white border-t border-slate-50">
+        <div class="relative flex items-center">
+            <input id="chatInput" type="text" placeholder="输入灵感或指令..." class="w-full p-3 pr-12 bg-slate-50 border border-slate-100 rounded-2xl text-sm outline-none focus:border-indigo-300 focus:bg-white transition-all">
+            <button id="sendChat" class="absolute right-2 p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg></button>
+        </div>
+      </div>
+    </div>
+    <div id="chatToggle"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path></svg></div>
+  </div>
+
+  <div id="listModal" class="modal fixed inset-0 bg-black/20 items-center justify-center z-[100] backdrop-blur-sm p-4">
+    <div class="bg-white rounded-3xl p-8 w-full max-w-xl shadow-2xl">
+      <div class="flex justify-between items-center mb-6"><h3 id="listModalTitle" class="text-xl font-bold">管理</h3><button data-action="open-edit" class="text-indigo-600 font-bold">+ 新增</button></div>
+      <div id="itemList" class="max-h-96 overflow-y-auto space-y-2"></div>
+      <div class="mt-8 flex justify-end"><button data-action="close-list" class="px-8 py-2 bg-slate-100 rounded-xl font-bold">关闭</button></div>
+    </div>
+  </div>
+  <div id="editModal" class="modal fixed inset-0 bg-black/40 items-center justify-center z-[110] p-4">
+    <div id="editModalContent" class="bg-white rounded-[2rem] p-10 w-full max-w-md shadow-2xl border border-white"></div>
+  </div>
+  <div id="imagePreviewModal" class="modal fixed inset-0 bg-black/75 items-center justify-center z-[130] p-4">
+    <div class="relative w-full max-w-4xl">
+      <button data-action="close-image-preview" class="absolute -top-12 right-0 text-white/80 hover:text-white text-sm font-bold">关闭</button>
+      <img id="imagePreviewModalImg" class="w-full max-h-[85vh] object-contain rounded-2xl bg-black/30 border border-white/10" alt="preview">
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'prompt_studio_v12_7';
+    const IS_LOCAL_HOST = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const TTS_API_URL = IS_LOCAL_HOST ? 'http://127.0.0.1:5050/api/tts' : '/api/tts';
+    const TTS_VOICES_API_URL = IS_LOCAL_HOST ? 'http://127.0.0.1:5050/api/voices' : '/api/voices';
+    const TTS_SETTINGS_KEY = 'prompt_studio_tts_settings_v1';
+    let ttsVoiceList = [];
+    function normalizeRepo(raw){
+      const base = raw && typeof raw === 'object' ? raw : {};
+      return {
+        role: Array.isArray(base.role) ? base.role : [],
+        scene: Array.isArray(base.scene) ? base.scene : [],
+        instruction: Array.isArray(base.instruction) ? base.instruction : [],
+        segment: Array.isArray(base.segment) ? base.segment : [],
+        api: Array.isArray(base.api) ? base.api : []
+      };
+    }
+    let repo = normalizeRepo(JSON.parse(localStorage.getItem(STORAGE_KEY)) || null);
+    // -----------------------------
+    // ComfyUI Local Generation Config
+    // -----------------------------
+    const COMFY_CFG_KEY = 'prompt_studio_comfyui_cfg_v1';
+    const SEGMENT_LOG_KEY = 'prompt_studio_segment_logs_v1';
+    const DIR_DB_NAME = 'prompt_studio_dir_handles_v1';
+    const DIR_DB_STORE = 'handles';
+    const DIR_KEY_EXPORT_IMAGES = 'export_images_dir';
+    const DIR_KEY_EXPORT_CSV = 'export_csv_dir';
+    const DIR_KEY_PROJECT_SAVE = 'project_save_dir';
+    const DIR_KEY_AUTO_IMAGE = 'auto_image_save_dir';
+    function normalizeComfyCfg(cfg){
+        const c = cfg && typeof cfg === 'object' ? cfg : {};
+        return {
+            url: c.url || 'http://127.0.0.1:8188',
+            workflow: c.workflow || null,
+            posNode: c.posNode || '',
+            negNode: c.negNode || '',
+            mapWidth: c.mapWidth || '',
+            mapHeight: c.mapHeight || '',
+            mapSeed: c.mapSeed || '',
+            mapSteps: c.mapSteps || '',
+            mapCfg: c.mapCfg || '',
+            mapSampler: c.mapSampler || '',
+            mapScheduler: c.mapScheduler || '',
+            mapModel: c.mapModel || '',
+            mapLoraName: c.mapLoraName || '',
+            mapLoraStrength: c.mapLoraStrength || '',
+            mapLoraClipStrength: c.mapLoraClipStrength || '',
+            valWidth: c.valWidth ?? '',
+            valHeight: c.valHeight ?? '',
+            valSeed: c.valSeed ?? '',
+            valSteps: c.valSteps ?? '',
+            valCfg: c.valCfg ?? '',
+            valSampler: c.valSampler ?? '',
+            valScheduler: c.valScheduler ?? '',
+            valModel: c.valModel ?? '',
+            valLoraName: c.valLoraName ?? '',
+            valLoraStrength: c.valLoraStrength ?? '',
+            valLoraClipStrength: c.valLoraClipStrength ?? '',
+            // 兼容旧字段 savePathLabel -> exportImagePathLabel
+            exportImagePathLabel: c.exportImagePathLabel || c.savePathLabel || '',
+            exportCsvPathLabel: c.exportCsvPathLabel || '',
+            projectSavePathLabel: c.projectSavePathLabel || '',
+            autoSaveImagePathLabel: c.autoSaveImagePathLabel || '',
+            autoSaveEnabled: c.autoSaveEnabled !== false
+        };
+    }
+    function loadComfyCfg(){
+        try { return normalizeComfyCfg(JSON.parse(localStorage.getItem(COMFY_CFG_KEY))); }
+        catch(e){ return normalizeComfyCfg(null); }
+    }
+    function saveComfyCfg(cfg){
+        localStorage.setItem(COMFY_CFG_KEY, JSON.stringify(normalizeComfyCfg(cfg)));
+        updateComfyCfgBadge();
+    }
+    function loadSegmentLogs(){
+        try {
+            const logs = JSON.parse(localStorage.getItem(SEGMENT_LOG_KEY) || '[]');
+            return Array.isArray(logs) ? logs : [];
+        } catch(e){ return []; }
+    }
+    function saveSegmentLogs(logs){
+        localStorage.setItem(SEGMENT_LOG_KEY, JSON.stringify(Array.isArray(logs) ? logs : []));
+    }
+    function loadTtsSettings(){
+        const defaults = {
+          voice: 'zh-CN-XiaoxiaoNeural',
+          locale: 'all',
+          ratePct: 0,
+          volumePct: 0,
+          pitchHz: 0,
+          wordBoundary: false,
+          sentenceBoundary: false,
+          enableMetadata: false,
+          postProcessEnabled: false,
+          silenceThresholdDb: -42,
+          silenceKeepMs: 120,
+          connectTimeout: '',
+          receiveTimeout: '',
+          proxy: ''
+        };
+        try {
+            const raw = JSON.parse(localStorage.getItem(TTS_SETTINGS_KEY) || '{}');
+            const cfg = { ...defaults, ...(raw || {}) };
+            cfg.silenceThresholdDb = Number.isFinite(Number(cfg.silenceThresholdDb)) ? Number(cfg.silenceThresholdDb) : defaults.silenceThresholdDb;
+            cfg.silenceKeepMs = Number.isFinite(Number(cfg.silenceKeepMs)) ? Number(cfg.silenceKeepMs) : defaults.silenceKeepMs;
+            cfg.silenceThresholdDb = Math.max(-80, Math.min(-5, cfg.silenceThresholdDb));
+            cfg.silenceKeepMs = Math.max(0, Math.min(2000, cfg.silenceKeepMs));
+            return cfg;
+        } catch(e){ return defaults; }
+    }
+    function saveTtsSettings(cfg){
+        localStorage.setItem(TTS_SETTINGS_KEY, JSON.stringify(cfg || {}));
+    }
+    function signed(num){
+        const n = Number(num) || 0;
+        return n >= 0 ? `+${n}` : `${n}`;
+    }
+    function rateToEdge(ratePct){ return `${signed(ratePct)}%`; }
+    function volumeToEdge(volumePct){ return `${signed(volumePct)}%`; }
+    function pitchToEdge(pitchHz){ return `${signed(pitchHz)}Hz`; }
+    function clampNum(n, min, max, fallback=0){
+        const v = Number(n);
+        if (!Number.isFinite(v)) return fallback;
+        return Math.max(min, Math.min(max, Math.round(v)));
+    }
+    function syncTtsNumericControls(sourceId){
+        const map = {
+          ttsRateRange: ['ttsRateInput', -100, 100],
+          ttsRateInput: ['ttsRateRange', -100, 100],
+          ttsVolumeRange: ['ttsVolumeInput', -100, 100],
+          ttsVolumeInput: ['ttsVolumeRange', -100, 100],
+          ttsPitchRange: ['ttsPitchInput', -100, 100],
+          ttsPitchInput: ['ttsPitchRange', -100, 100]
+        };
+        const item = map[sourceId];
+        if (!item) return;
+        const [targetId, min, max] = item;
+        const src = document.getElementById(sourceId);
+        const target = document.getElementById(targetId);
+        if (!src || !target) return;
+        const v = clampNum(src.value, min, max, 0);
+        src.value = String(v);
+        target.value = String(v);
+    }
+    function updateTtsRangeLabels(){
+        const saved = loadTtsSettings();
+        const rate = Number($('#ttsRateRange')?.value ?? saved.ratePct ?? 0);
+        const volume = Number($('#ttsVolumeRange')?.value ?? saved.volumePct ?? 0);
+        const pitch = Number($('#ttsPitchRange')?.value ?? saved.pitchHz ?? 0);
+        if ($('#ttsRateInput')) $('#ttsRateInput').value = String(rate);
+        if ($('#ttsVolumeInput')) $('#ttsVolumeInput').value = String(volume);
+        if ($('#ttsPitchInput')) $('#ttsPitchInput').value = String(pitch);
+        $('#ttsRateLabel').textContent = `${rate}%`;
+        $('#ttsVolumeLabel').textContent = `${volume}%`;
+        $('#ttsPitchLabel').textContent = `${pitch}Hz`;
+    }
+    function getDistinctLocales(voices){
+        const set = new Set((voices||[]).map(v => String(v.Locale || '').trim()).filter(Boolean));
+        return Array.from(set).sort();
+    }
+    function renderTtsLocaleOptions(){
+        const sel = $('#ttsLocaleFilter');
+        if (!sel) return;
+        const locales = getDistinctLocales(ttsVoiceList);
+        sel.innerHTML = ['<option value="all">全部语言</option>', ...locales.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`)].join('');
+    }
+    function renderTtsVoiceOptions(locale='all'){
+        const sel = $('#ttsVoiceSelect');
+        if (!sel) return;
+        const list = (ttsVoiceList || []).filter(v => locale === 'all' || v.Locale === locale);
+        sel.innerHTML = list.length
+          ? list.map(v => `<option value="${escapeHtml(v.ShortName || v.Name || '')}">${escapeHtml(v.ShortName || v.Name || '')} · ${escapeHtml(v.Gender || '')} · ${escapeHtml(v.Locale || '')}</option>`).join('')
+          : '<option value="">（无可用音色）</option>';
+    }
+    async function fetchTtsVoices(){
+        const res = await fetch(TTS_VOICES_API_URL);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        const voices = Array.isArray(data?.voices) ? data.voices : [];
+        ttsVoiceList = voices;
+        if (data?.fallback) {
+          console.warn('Using fallback voice list:', data?.error || 'unknown');
+        }
+        return voices;
+    }
+    async function openTtsModal(){
+      const cfg = loadTtsSettings();
+        try { await fetchTtsVoices(); } catch (e) { console.error(e); alert('获取 Edge-TTS 音色失败：' + (e?.message || '未知错误')); }
+        renderTtsLocaleOptions();
+        $('#ttsLocaleFilter').value = cfg.locale || 'all';
+        renderTtsVoiceOptions(cfg.locale || 'all');
+        $('#ttsVoiceSelect').value = cfg.voice || '';
+        $('#ttsRateRange').value = String(cfg.ratePct ?? 0);
+        $('#ttsRateInput').value = String(cfg.ratePct ?? 0);
+        $('#ttsVolumeRange').value = String(cfg.volumePct ?? 0);
+        $('#ttsVolumeInput').value = String(cfg.volumePct ?? 0);
+        $('#ttsPitchRange').value = String(cfg.pitchHz ?? 0);
+        $('#ttsPitchInput').value = String(cfg.pitchHz ?? 0);
+        $('#ttsWordBoundary').checked = !!cfg.wordBoundary;
+        $('#ttsSentenceBoundary').checked = !!cfg.sentenceBoundary;
+        $('#ttsEnableMetadata').checked = !!cfg.enableMetadata;
+        $('#ttsPostProcessEnabled').checked = !!cfg.postProcessEnabled;
+        $('#ttsSilenceThresholdDb').value = String(cfg.silenceThresholdDb ?? -42);
+        $('#ttsSilenceKeepMs').value = String(cfg.silenceKeepMs ?? 120);
+        $('#ttsConnectTimeout').value = cfg.connectTimeout ?? '';
+        $('#ttsReceiveTimeout').value = cfg.receiveTimeout ?? '';
+        $('#ttsProxy').value = cfg.proxy ?? '';
+        updateTtsRangeLabels();
+        showModal($('#ttsModal'));
+    }
+    function collectTtsSettingsFromUI(){
+        const ratePct = clampNum($('#ttsRateInput')?.value ?? $('#ttsRateRange')?.value ?? 0, -100, 100, 0);
+        const volumePct = clampNum($('#ttsVolumeInput')?.value ?? $('#ttsVolumeRange')?.value ?? 0, -100, 100, 0);
+        const pitchHz = clampNum($('#ttsPitchInput')?.value ?? $('#ttsPitchRange')?.value ?? 0, -100, 100, 0);
+        return {
+          voice: ($('#ttsVoiceSelect')?.value || '').trim(),
+          locale: ($('#ttsLocaleFilter')?.value || 'all').trim() || 'all',
+          ratePct,
+          volumePct,
+          pitchHz,
+          wordBoundary: !!$('#ttsWordBoundary')?.checked,
+          sentenceBoundary: !!$('#ttsSentenceBoundary')?.checked,
+          enableMetadata: !!$('#ttsEnableMetadata')?.checked,
+          postProcessEnabled: !!$('#ttsPostProcessEnabled')?.checked,
+          silenceThresholdDb: Number($('#ttsSilenceThresholdDb')?.value ?? -42),
+          silenceKeepMs: Number($('#ttsSilenceKeepMs')?.value ?? 120),
+          connectTimeout: ($('#ttsConnectTimeout')?.value || '').trim(),
+          receiveTimeout: ($('#ttsReceiveTimeout')?.value || '').trim(),
+          proxy: ($('#ttsProxy')?.value || '').trim()
+        };
+    }
+    async function decodeAudioBlobToBuffer(blob){
+      const ab = await blob.arrayBuffer();
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) throw new Error('当前浏览器不支持 AudioContext');
+      const ctx = new AC();
+      try {
+        return await ctx.decodeAudioData(ab.slice(0));
+      } finally {
+        await ctx.close().catch(() => {});
+      }
+    }
+    function buildShortenedAudioBuffer(srcBuffer, thresholdDb, keepMs){
+      const sampleRate = srcBuffer.sampleRate;
+      const channels = srcBuffer.numberOfChannels;
+      const length = srcBuffer.length;
+      if (!channels || !length) return srcBuffer;
+
+      const keepSamples = Math.max(0, Math.round(sampleRate * (keepMs / 1000)));
+      const thresholdLinear = Math.pow(10, thresholdDb / 20);
+      const data = Array.from({ length: channels }, (_, ch) => srcBuffer.getChannelData(ch));
+      const isSilentAt = (idx) => {
+        for (let ch = 0; ch < channels; ch++) {
+          if (Math.abs(data[ch][idx]) > thresholdLinear) return false;
+        }
+        return true;
+      };
+
+      let outLen = 0;
+      let i = 0;
+      while (i < length) {
+        const silent = isSilentAt(i);
+        let j = i + 1;
+        while (j < length && isSilentAt(j) === silent) j++;
+        const runLen = j - i;
+        outLen += silent ? Math.min(runLen, keepSamples) : runLen;
+        i = j;
+      }
+      if (outLen >= length) return srcBuffer;
+
+      const out = Array.from({ length: channels }, () => new Float32Array(outLen));
+      let writePos = 0;
+      i = 0;
+      while (i < length) {
+        const silent = isSilentAt(i);
+        let j = i + 1;
+        while (j < length && isSilentAt(j) === silent) j++;
+        const runLen = j - i;
+        const copyLen = silent ? Math.min(runLen, keepSamples) : runLen;
+        if (copyLen > 0) {
+          for (let ch = 0; ch < channels; ch++) {
+            out[ch].set(data[ch].subarray(i, i + copyLen), writePos);
+          }
+          writePos += copyLen;
+        }
+        i = j;
+      }
+      return { sampleRate, channels, data: out, length: outLen };
+    }
+    function encodeWavBlobFromAudioData(audioData){
+      const sampleRate = audioData.sampleRate;
+      const channels = audioData.channels;
+      const samples = audioData.length;
+      const bytesPerSample = 2;
+      const blockAlign = channels * bytesPerSample;
+      const byteRate = sampleRate * blockAlign;
+      const dataBytes = samples * blockAlign;
+      const buffer = new ArrayBuffer(44 + dataBytes);
+      const view = new DataView(buffer);
+      const writeStr = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+
+      writeStr(0, 'RIFF');
+      view.setUint32(4, 36 + dataBytes, true);
+      writeStr(8, 'WAVE');
+      writeStr(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, channels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, 16, true);
+      writeStr(36, 'data');
+      view.setUint32(40, dataBytes, true);
+
+      let offset = 44;
+      for (let i = 0; i < samples; i++) {
+        for (let ch = 0; ch < channels; ch++) {
+          const v = Math.max(-1, Math.min(1, audioData.data[ch][i] || 0));
+          const pcm = v < 0 ? v * 0x8000 : v * 0x7fff;
+          view.setInt16(offset, pcm, true);
+          offset += 2;
+        }
+      }
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+    async function applyTtsPostProcess(blob, cfg){
+      if (!cfg?.postProcessEnabled) return blob;
+      const audioBuffer = await decodeAudioBlobToBuffer(blob);
+      const compact = buildShortenedAudioBuffer(audioBuffer, Number(cfg.silenceThresholdDb), Number(cfg.silenceKeepMs));
+      if (!compact || compact === audioBuffer) return blob;
+      return encodeWavBlobFromAudioData(compact);
+    }
+    function openDirDB(){
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(DIR_DB_NAME, 1);
+            req.onupgradeneeded = () => {
+                const db = req.result;
+                if (!db.objectStoreNames.contains(DIR_DB_STORE)) db.createObjectStore(DIR_DB_STORE);
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
+    async function idbSetHandle(key, handle){
+        const db = await openDirDB();
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(DIR_DB_STORE, 'readwrite');
+            tx.objectStore(DIR_DB_STORE).put(handle, key);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+        db.close();
+    }
+    async function idbGetHandle(key){
+        const db = await openDirDB();
+        const out = await new Promise((resolve, reject) => {
+            const tx = db.transaction(DIR_DB_STORE, 'readonly');
+            const req = tx.objectStore(DIR_DB_STORE).get(key);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        });
+        db.close();
+        return out;
+    }
+    async function verifyDirPermission(handle, request=false){
+        if (!handle) return false;
+        try {
+            const opts = { mode: 'readwrite' };
+            if (await handle.queryPermission(opts) === 'granted') return true;
+            if (!request) return false;
+            return (await handle.requestPermission(opts)) === 'granted';
+        } catch (e) { return false; }
+    }
+    async function pickDirectoryAndStore(dirKey){
+        if (!window.showDirectoryPicker) throw new Error('UNSUPPORTED');
+        const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        await idbSetHandle(dirKey, handle);
+        return handle;
+    }
+    async function initSavedDirectoryHandles(){
+        if (!window.showDirectoryPicker) return;
+        const cfg = loadComfyCfg();
+        let changed = false;
+        try {
+            const a = await idbGetHandle(DIR_KEY_EXPORT_IMAGES);
+            if (a && await verifyDirPermission(a, false)) {
+                exportImageDirHandle = a;
+                if ((cfg.exportImagePathLabel || '') !== (a.name || '')) {
+                    cfg.exportImagePathLabel = a.name || '';
+                    changed = true;
+                }
+            }
+        } catch(e){}
+        try {
+            const c = await idbGetHandle(DIR_KEY_EXPORT_CSV);
+            if (c && await verifyDirPermission(c, false)) {
+                exportCsvDirHandle = c;
+                if ((cfg.exportCsvPathLabel || '') !== (c.name || '')) {
+                    cfg.exportCsvPathLabel = c.name || '';
+                    changed = true;
+                }
+            }
+        } catch(e){}
+        try {
+            const p = await idbGetHandle(DIR_KEY_PROJECT_SAVE);
+            if (p && await verifyDirPermission(p, false)) {
+                projectSaveDirHandle = p;
+                if ((cfg.projectSavePathLabel || '') !== (p.name || '')) {
+                    cfg.projectSavePathLabel = p.name || '';
+                    changed = true;
+                }
+            }
+        } catch(e){}
+        try {
+            const au = await idbGetHandle(DIR_KEY_AUTO_IMAGE);
+            if (au && await verifyDirPermission(au, false)) {
+                autoSaveImageDirHandle = au;
+                if ((cfg.autoSaveImagePathLabel || '') !== (au.name || '')) {
+                    cfg.autoSaveImagePathLabel = au.name || '';
+                    changed = true;
+                }
+            }
+        } catch(e){}
+        if (changed) saveComfyCfg(cfg);
+    }
+    function updateComfyCfgBadge(){
+        const badge = document.getElementById('comfyCfgBadge');
+        if (!badge) return;
+        const cfg = loadComfyCfg();
+        const ok = !!(cfg.url && cfg.workflow && cfg.posNode);
+        badge.textContent = ok ? '已配置' : '未配置';
+        badge.className = ok
+          ? 'text-[10px] font-black px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-600'
+          : 'text-[10px] font-black px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 text-slate-500';
+    }
+    function findComfyTextNodes(wf){
+        const nodes = wf || {};
+        const out = [];
+        for (const [id, node] of Object.entries(nodes)) {
+            if (!node || typeof node !== 'object') continue;
+            const inputs = node.inputs || {};
+            if (Object.prototype.hasOwnProperty.call(inputs, 'text') && (typeof inputs.text === 'string' || inputs.text === null)) {
+                const ct = node.class_type || 'Unknown';
+                const title = (node._meta && node._meta.title) ? node._meta.title : '';
+                out.push({ id, class_type: ct, title });
+            }
+        }
+        out.sort((a,b)=>{
+            const ax = /cliptextencode/i.test(a.class_type) ? 0 : 1;
+            const bx = /cliptextencode/i.test(b.class_type) ? 0 : 1;
+            if (ax !== bx) return ax - bx;
+            return (parseInt(a.id,10)||0) - (parseInt(b.id,10)||0);
+        });
+        return out;
+    }
+    function findComfyInputCandidates(wf, keySet){
+        const nodes = wf || {};
+        const keys = new Set((keySet || []).map(k => String(k).toLowerCase()));
+        const out = [];
+        for (const [id, node] of Object.entries(nodes)) {
+            if (!node || typeof node !== 'object') continue;
+            const inputs = node.inputs || {};
+            for (const [k, v] of Object.entries(inputs)) {
+                if (!keys.has(String(k).toLowerCase())) continue;
+                if (Array.isArray(v) || (v && typeof v === 'object')) continue;
+                const ct = node.class_type || 'Unknown';
+                const title = (node._meta && node._meta.title) ? node._meta.title : '';
+                out.push({ id, inputKey: k, class_type: ct, title });
+            }
+        }
+        out.sort((a,b)=>{
+            const ai = (parseInt(a.id,10)||0), bi = (parseInt(b.id,10)||0);
+            if (ai !== bi) return ai - bi;
+            return String(a.inputKey).localeCompare(String(b.inputKey));
+        });
+        return out;
+    }
+    function fillComfyNodeSelect(sel, list, selected){
+        if (!sel) return;
+        sel.innerHTML = '';
+        const opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = '（不选择）';
+        sel.appendChild(opt0);
+        (list||[]).forEach(n=>{
+            const opt = document.createElement('option');
+            opt.value = n.id;
+            opt.textContent = `${n.id} · ${n.class_type}${n.title ? ' · ' + n.title : ''}`;
+            sel.appendChild(opt);
+        });
+        if (selected) sel.value = selected;
+    }
+    function fillComfyInputMapSelect(sel, list, selected){
+        if (!sel) return;
+        sel.innerHTML = '';
+        const opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = '（不选择）';
+        sel.appendChild(opt0);
+        (list||[]).forEach(n=>{
+            const opt = document.createElement('option');
+            opt.value = `${n.id}::${n.inputKey}`;
+            opt.textContent = `${n.id}.${n.inputKey} · ${n.class_type}${n.title ? ' · ' + n.title : ''}`;
+            sel.appendChild(opt);
+        });
+        if (selected) sel.value = selected;
+    }
+    function parseComfyMap(mapVal){
+        const raw = String(mapVal || '');
+        if (!raw.includes('::')) return { nodeId:'', inputKey:'' };
+        const [nodeId, inputKey] = raw.split('::');
+        return { nodeId: nodeId || '', inputKey: inputKey || '' };
+    }
+    function setMappedInput(graph, mapVal, value){
+        if (value === '' || value === null || value === undefined) return;
+        const { nodeId, inputKey } = parseComfyMap(mapVal);
+        if (!nodeId || !inputKey) return;
+        if (!graph[nodeId] || !graph[nodeId].inputs || !Object.prototype.hasOwnProperty.call(graph[nodeId].inputs, inputKey)) return;
+        const current = graph[nodeId].inputs[inputKey];
+        let next = value;
+        if (typeof current === 'number') {
+            const n = Number(value);
+            if (!Number.isNaN(n)) next = n;
+        } else if (typeof current === 'boolean') {
+            next = String(value).toLowerCase() === 'true';
+        } else {
+            next = String(value);
+        }
+        graph[nodeId].inputs[inputKey] = next;
+    }
+    function inferDefaultMap(cands, prefNodeType, prefKey){
+        if (!Array.isArray(cands) || !cands.length) return '';
+        const hit = cands.find(c => String(c.class_type||'').toLowerCase().includes(String(prefNodeType||'').toLowerCase()) && String(c.inputKey||'').toLowerCase() === String(prefKey||'').toLowerCase());
+        if (hit) return `${hit.id}::${hit.inputKey}`;
+        return `${cands[0].id}::${cands[0].inputKey}`;
+    }
+    function populateComfyAdvancedMappings(cfg){
+        const wf = cfg?.workflow || null;
+        const empty = [];
+        const widthCands = wf ? findComfyInputCandidates(wf, ['width']) : empty;
+        const heightCands = wf ? findComfyInputCandidates(wf, ['height']) : empty;
+        const seedCands = wf ? findComfyInputCandidates(wf, ['seed','noise_seed']) : empty;
+        const stepsCands = wf ? findComfyInputCandidates(wf, ['steps']) : empty;
+        const cfgCands = wf ? findComfyInputCandidates(wf, ['cfg']) : empty;
+        const samplerCands = wf ? findComfyInputCandidates(wf, ['sampler_name']) : empty;
+        const schedulerCands = wf ? findComfyInputCandidates(wf, ['scheduler']) : empty;
+        const modelCands = wf ? findComfyInputCandidates(wf, ['ckpt_name','model_name']) : empty;
+        const loraNameCands = wf ? findComfyInputCandidates(wf, ['lora_name']) : empty;
+        const loraStrengthCands = wf ? findComfyInputCandidates(wf, ['strength_model']) : empty;
+        const loraClipStrengthCands = wf ? findComfyInputCandidates(wf, ['strength_clip']) : empty;
+
+        if (!cfg.mapWidth) cfg.mapWidth = inferDefaultMap(widthCands, 'emptylatentimage', 'width');
+        if (!cfg.mapHeight) cfg.mapHeight = inferDefaultMap(heightCands, 'emptylatentimage', 'height');
+        if (!cfg.mapSeed) cfg.mapSeed = inferDefaultMap(seedCands, 'ksampler', 'seed');
+        if (!cfg.mapSteps) cfg.mapSteps = inferDefaultMap(stepsCands, 'ksampler', 'steps');
+        if (!cfg.mapCfg) cfg.mapCfg = inferDefaultMap(cfgCands, 'ksampler', 'cfg');
+        if (!cfg.mapSampler) cfg.mapSampler = inferDefaultMap(samplerCands, 'ksampler', 'sampler_name');
+        if (!cfg.mapScheduler) cfg.mapScheduler = inferDefaultMap(schedulerCands, 'ksampler', 'scheduler');
+        if (!cfg.mapModel) cfg.mapModel = inferDefaultMap(modelCands, 'checkpointloader', 'ckpt_name');
+        if (!cfg.mapLoraName) cfg.mapLoraName = inferDefaultMap(loraNameCands, 'loraloader', 'lora_name');
+        if (!cfg.mapLoraStrength) cfg.mapLoraStrength = inferDefaultMap(loraStrengthCands, 'loraloader', 'strength_model');
+        if (!cfg.mapLoraClipStrength) cfg.mapLoraClipStrength = inferDefaultMap(loraClipStrengthCands, 'loraloader', 'strength_clip');
+
+        fillComfyInputMapSelect($('#comfyMapWidth'), widthCands, cfg.mapWidth);
+        fillComfyInputMapSelect($('#comfyMapHeight'), heightCands, cfg.mapHeight);
+        fillComfyInputMapSelect($('#comfyMapSeed'), seedCands, cfg.mapSeed);
+        fillComfyInputMapSelect($('#comfyMapSteps'), stepsCands, cfg.mapSteps);
+        fillComfyInputMapSelect($('#comfyMapCfg'), cfgCands, cfg.mapCfg);
+        fillComfyInputMapSelect($('#comfyMapSampler'), samplerCands, cfg.mapSampler);
+        fillComfyInputMapSelect($('#comfyMapScheduler'), schedulerCands, cfg.mapScheduler);
+        fillComfyInputMapSelect($('#comfyMapModel'), modelCands, cfg.mapModel);
+        fillComfyInputMapSelect($('#comfyMapLoraName'), loraNameCands, cfg.mapLoraName);
+        fillComfyInputMapSelect($('#comfyMapLoraStrength'), loraStrengthCands, cfg.mapLoraStrength);
+        fillComfyInputMapSelect($('#comfyMapLoraClipStrength'), loraClipStrengthCands, cfg.mapLoraClipStrength);
+    }
+    function getMappedInputCurrentValue(cfg, mapVal){
+        const wf = cfg?.workflow || null;
+        if (!wf) return '';
+        const { nodeId, inputKey } = parseComfyMap(mapVal);
+        if (!nodeId || !inputKey) return '';
+        const v = wf?.[nodeId]?.inputs?.[inputKey];
+        if (v === undefined || v === null) return '';
+        if (Array.isArray(v) || (v && typeof v === 'object')) return '';
+        return String(v);
+    }
+    function hydrateComfyValuesFromWorkflow(cfg, force=false){
+        const pairs = [
+          ['mapWidth','valWidth'],
+          ['mapHeight','valHeight'],
+          ['mapSeed','valSeed'],
+          ['mapSteps','valSteps'],
+          ['mapCfg','valCfg'],
+          ['mapSampler','valSampler'],
+          ['mapScheduler','valScheduler'],
+          ['mapModel','valModel'],
+          ['mapLoraName','valLoraName'],
+          ['mapLoraStrength','valLoraStrength'],
+          ['mapLoraClipStrength','valLoraClipStrength']
+        ];
+        pairs.forEach(([mapKey, valKey]) => {
+          const cur = String(cfg?.[valKey] ?? '').trim();
+          if (!force && cur !== '') return;
+          const wfVal = getMappedInputCurrentValue(cfg, cfg?.[mapKey] || '');
+          if (wfVal !== '') cfg[valKey] = wfVal;
+        });
+    }
+
+    // -----------------------------
+    // ComfyUI Client (queue -> ws -> history -> view)
+    // -----------------------------
+    let comfyClientId = (crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+    let comfyWS = null;
+    let comfyCurrent = { promptId:null, resolve:null, reject:null };
+    let segmentAbortController = null;
+    let exportImageDirHandle = null;
+    let exportCsvDirHandle = null;
+    let projectSaveDirHandle = null;
+    let autoSaveImageDirHandle = null;
+
+    function comfyBase(){
+        const cfg = loadComfyCfg();
+        return (cfg.url || 'http://127.0.0.1:8188').trim().replace(/\/+$/,'');
+    }
+    function comfyWsUrl(){
+        const base = comfyBase();
+        return base.replace(/^http/,'ws') + `/ws?clientId=${encodeURIComponent(comfyClientId)}`;
+    }
+    function ensureComfyWS(){
+        if (comfyWS && comfyWS.readyState === 1) return;
+        try { if (comfyWS) comfyWS.close(); } catch(e){}
+        comfyWS = new WebSocket(comfyWsUrl());
+        comfyWS.onmessage = (ev) => {
+            let msg=null;
+            try { msg = JSON.parse(ev.data); } catch(e){ return; }
+            if (!msg || !msg.type) return;
+            if (msg.type === 'executing') {
+                const d = msg.data || {};
+                if (!comfyCurrent.promptId) return;
+                if (d.prompt_id && d.prompt_id !== comfyCurrent.promptId) return;
+                if (d.node === null) {
+                    // finished
+                    const r = comfyCurrent.resolve;
+                    comfyCurrent = { promptId:null, resolve:null, reject:null };
+                    if (r) r(true);
+                }
+            }
+        };
+        comfyWS.onerror = () => {};
+    }
+
+    async function comfyPostPrompt(graph){
+        const base = comfyBase();
+        const payload = { prompt: graph, client_id: comfyClientId };
+        const candidates = ['/prompt','/api/prompt'];
+        let lastErr=null;
+        for (const p of candidates){
+            try{
+                const res = await fetch(base + p, {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) { lastErr = new Error(`HTTP ${res.status} @ ${p}`); continue; }
+                return await res.json();
+            }catch(e){ lastErr = e; }
+        }
+        throw lastErr || new Error('POST prompt failed');
+    }
+    async function comfyGetHistory(promptId){
+        const res = await fetch(`${comfyBase()}/history/${promptId}`);
+        if (!res.ok) throw new Error('history failed: ' + res.status);
+        return await res.json();
+    }
+    async function comfyFetchImageBlob(fileObj){
+        const qs = new URLSearchParams({
+            filename: fileObj.filename || '',
+            subfolder: fileObj.subfolder || '',
+            type: fileObj.type || 'output'
+        });
+        const res = await fetch(`${comfyBase()}/view?` + qs.toString());
+        if (!res.ok) throw new Error('view failed: ' + res.status);
+        return await res.blob();
+    }
+    function comfyBuildGraphFromResult(promptText, negText){
+        const cfg = loadComfyCfg();
+        if (!cfg.workflow) throw new Error('未上传 ComfyUI 工作流(API)');
+        if (!cfg.posNode) throw new Error('未选择正面文本节点');
+        const graph = structuredClone(cfg.workflow);
+        if (graph[cfg.posNode]?.inputs && Object.prototype.hasOwnProperty.call(graph[cfg.posNode].inputs,'text')) {
+            graph[cfg.posNode].inputs.text = promptText || '';
+        }
+        if (cfg.negNode && graph[cfg.negNode]?.inputs && Object.prototype.hasOwnProperty.call(graph[cfg.negNode].inputs,'text')) {
+            graph[cfg.negNode].inputs.text = negText || '';
+        }
+        setMappedInput(graph, cfg.mapWidth, cfg.valWidth);
+        setMappedInput(graph, cfg.mapHeight, cfg.valHeight);
+        setMappedInput(graph, cfg.mapSeed, cfg.valSeed);
+        setMappedInput(graph, cfg.mapSteps, cfg.valSteps);
+        setMappedInput(graph, cfg.mapCfg, cfg.valCfg);
+        setMappedInput(graph, cfg.mapSampler, cfg.valSampler);
+        setMappedInput(graph, cfg.mapScheduler, cfg.valScheduler);
+        setMappedInput(graph, cfg.mapModel, cfg.valModel);
+        setMappedInput(graph, cfg.mapLoraName, cfg.valLoraName);
+        setMappedInput(graph, cfg.mapLoraStrength, cfg.valLoraStrength);
+        setMappedInput(graph, cfg.mapLoraClipStrength, cfg.valLoraClipStrength);
+        return graph;
+    }
+
+    async function comfyGenerateImage(promptText, negText){
+        ensureComfyWS();
+        const graph = comfyBuildGraphFromResult(promptText, negText);
+        const resp = await comfyPostPrompt(graph);
+        const promptId = resp.prompt_id || resp.promptId || resp.id;
+        if (!promptId) throw new Error('未拿到 prompt_id');
+        await new Promise((resolve, reject)=>{
+            comfyCurrent = { promptId, resolve, reject };
+            // 兜底：如果 WS 没回来，给一个最大等待（60s）避免卡死
+            setTimeout(()=> {
+                if (comfyCurrent.promptId === promptId) {
+                    comfyCurrent = { promptId:null, resolve:null, reject:null };
+                    reject(new Error('等待 ComfyUI 完成超时'));
+                }
+            }, 60000);
+        });
+        const hist = await comfyGetHistory(promptId);
+        const entry = hist[promptId];
+        const outputs = entry?.outputs || {};
+        const images = [];
+        for (const [nodeId, out] of Object.entries(outputs)) {
+            if (out && Array.isArray(out.images)) {
+                out.images.forEach(im => images.push({ ...im, nodeId }));
+            }
+        }
+        if (!images.length) throw new Error('没有输出图片（检查工作流是否有 SaveImage 输出）');
+        // 取第一张
+        const blob = await comfyFetchImageBlob(images[0]);
+        return { blob, meta: images[0], promptId };
+    }
+
+    
+    function saveRepo() { 
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(repo)); 
+        initRepoUI(); 
+        updateAllCards(); 
+    }
+
+    let currentAPI = null, currentType = '', editingIndex = -1, batchMode = 'polish';
+    let batchTtsRunning = false;
+    const types = [ { id: 'role', label: '角色预设' }, { id: 'scene', label: '场景预设' }, { id: 'instruction', label: '执行指令' }, { id: 'segment', label: 'AI分词' }, { id: 'api', label: '接口配置' } ];
+    const cardChipTypeIds = ['role', 'scene', 'instruction'];
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+    const showModal = el => el.classList.add('is-open');
+    const hideModal = el => el.classList.remove('is-open');
+    const escapeHtml = s => (s ?? '').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");
+
+    // Chat Logic
+    const chatToggle = $('#chatToggle'), chatPanel = $('#chatPanel'), chatHistory = $('#chatHistory'), chatInput = $('#chatInput'), sendChat = $('#sendChat'), closeChat = $('#closeChat');
+    chatToggle.onclick = () => chatPanel.classList.toggle('is-open');
+    closeChat.onclick = () => chatPanel.classList.remove('is-open');
+
+    function appendChatMsg(role, text) {
+        const msg = document.createElement('div');
+        msg.className = role === 'user' ? 'msg-user' : 'msg-ai';
+        msg.textContent = text;
+        chatHistory.appendChild(msg);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    async function handleChat() {
+        const text = chatInput.value.trim();
+        const api = currentAPI || repo.api[0];
+        if (!text || !api?.key) return;
+        appendChatMsg('user', text);
+        chatInput.value = '';
+        try {
+            const response = await fetch(`${api.url.replace(/\/+$/,'')}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.key}` },
+                body: JSON.stringify({ model: api.model, messages: [{ role: 'system', content: "你是一个专业的编剧。请用中文回答。" }, { role: 'user', content: text }] })
+            });
+            const data = await response.json();
+            appendChatMsg('ai', data?.choices?.[0]?.message?.content || "API 响应异常");
+        } catch (err) { appendChatMsg('ai', "发送失败。"); }
+    }
+    sendChat.onclick = handleChat;
+    chatInput.onkeydown = (e) => { if(e.key === 'Enter') handleChat(); };
+
+    // Card Core Logic
+    function getCardProgressState(card){
+        const polish = card.dataset.polishStatus || 'idle';
+        const image = card.dataset.imageStatus || 'idle';
+        if (polish === 'processing' || image === 'processing') return 'processing';
+        if (polish === 'completed' || image === 'completed') return 'completed';
+        return 'idle';
+    }
+    function setCardTaskStatus(card, task, status){
+        if (!card) return;
+        card.dataset[task + 'Status'] = status;
+        refreshOutline();
+    }
+    function getCardTtsPlaylist(cardEl){
+        if (!cardEl || !Array.isArray(cardEl._ttsPlaylist)) return [];
+        return cardEl._ttsPlaylist.slice();
+    }
+    function setCardTtsPlaylist(cardEl, urls){
+        if (!cardEl) return;
+        cardEl._ttsPlaylist = Array.isArray(urls) ? urls.slice() : [];
+        cardEl._ttsCurrentLine = -1;
+    }
+    function clearCardTtsAtLine(cardEl, lineIndex){
+        const list = getCardTtsPlaylist(cardEl);
+        if (!Array.isArray(list)) return;
+        if (!Number.isFinite(lineIndex) || lineIndex < 0 || lineIndex >= list.length) return;
+        const oldUrl = list[lineIndex];
+        if (oldUrl) { try { URL.revokeObjectURL(oldUrl); } catch(e){} }
+        list[lineIndex] = '';
+        setCardTtsPlaylist(cardEl, list);
+        updateCardLinePlayButtons(cardEl);
+    }
+    function removeCardTtsAtLine(cardEl, lineIndex){
+        const list = getCardTtsPlaylist(cardEl);
+        if (!Array.isArray(list) || !list.length) return;
+        if (!Number.isFinite(lineIndex) || lineIndex < 0 || lineIndex >= list.length) return;
+        const oldUrl = list[lineIndex];
+        if (oldUrl) { try { URL.revokeObjectURL(oldUrl); } catch(e){} }
+        list.splice(lineIndex, 1);
+        setCardTtsPlaylist(cardEl, list);
+        updateCardLinePlayButtons(cardEl);
+    }
+    function getCardTtsLines(cardEl){
+      const lines = getContentLinesArray(cardEl).filter(Boolean);
+      if (lines.length) return lines;
+      return (($('.row-content-display', cardEl)?.value || ''))
+          .split('\n')
+          .map(t => t.trim())
+          .filter(Boolean);
+    }
+    function updateCardLinePlayButtons(cardEl){
+        const rows = $$('.content-line-row', cardEl);
+        const list = getCardTtsPlaylist(cardEl);
+        const current = Number(cardEl?._ttsCurrentLine ?? -1);
+        const audioEl = $('.tts-audio', cardEl);
+        rows.forEach((row, idx) => {
+          const btn = $('.content-line-play', row);
+          const recBtn = $('.content-line-reconvert', row);
+          if (!btn) return;
+          const hasAudio = !!list[idx];
+          btn.disabled = false;
+          if (!hasAudio) {
+            btn.textContent = '转换';
+            btn.className = 'content-line-play bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200';
+            if (recBtn) recBtn.classList.add('hidden');
+            return;
+          }
+          const isPlaying = current === idx && !!audioEl && !audioEl.paused;
+          btn.textContent = isPlaying ? '⏸ 暂停' : '▶ 播放';
+          btn.className = 'content-line-play bg-white text-slate-700 border-slate-200 hover:bg-slate-100';
+          if (recBtn) recBtn.classList.remove('hidden');
+        });
+    }
+    async function convertCardLineTts(cardEl, row, actionBtn){
+      const rows = $$('.content-line-row', cardEl);
+      const idx = rows.indexOf(row);
+      if (idx < 0) return false;
+      const lineText = ($('.content-line-input', row)?.value || '').trim();
+      if (!lineText) return false;
+      const ttsCfg = loadTtsSettings();
+      if (!ttsCfg.voice) { alert('请先在语音设置中选择音色'); return false; }
+      const oldText = actionBtn?.textContent || '转换';
+      if (actionBtn) {
+        actionBtn.disabled = true;
+        actionBtn.textContent = '转换中';
+      }
+      setCardTaskStatus(cardEl, 'tts', 'processing');
+      try {
+        const blob = await synthesizeTtsBlobForText(lineText, ttsCfg);
+        setCardTtsBlobAtLine(cardEl, idx, blob);
+        setCardTaskStatus(cardEl, 'tts', 'completed');
+        return true;
+      } catch (err) {
+        console.error(err);
+        setCardTaskStatus(cardEl, 'tts', 'idle');
+        return false;
+      } finally {
+        if (actionBtn) {
+          actionBtn.disabled = false;
+          actionBtn.textContent = oldText;
+        }
+        updateCardLinePlayButtons(cardEl);
+      }
+    }
+    async function playCardLineAudio(cardEl, index){
+        const audioEl = $('.tts-audio', cardEl);
+        const list = getCardTtsPlaylist(cardEl);
+        if (!audioEl || !list.length) return false;
+        if (!Number.isFinite(index) || index < 0 || index >= list.length) return false;
+
+        cardEl._ttsCurrentLine = index;
+        const targetSrc = list[index];
+        if ((audioEl.getAttribute('src') || '') !== targetSrc) {
+          audioEl.src = targetSrc;
+          audioEl.load();
+        }
+        try {
+          await audioEl.play();
+          updateCardLinePlayButtons(cardEl);
+          return true;
+        } catch (e) {
+          cardEl._ttsCurrentLine = -1;
+          updateCardLinePlayButtons(cardEl);
+          return false;
+        }
+    }
+    function initCardTtsAudio(cardEl){
+        const audioEl = $('.tts-audio', cardEl);
+        if (!audioEl || audioEl.dataset.ttsInit === '1') return;
+        audioEl.dataset.ttsInit = '1';
+        audioEl.addEventListener('play', () => updateCardLinePlayButtons(cardEl));
+        audioEl.addEventListener('pause', () => updateCardLinePlayButtons(cardEl));
+        audioEl.addEventListener('ended', () => {
+          cardEl._ttsCurrentLine = -1;
+          updateCardLinePlayButtons(cardEl);
+        });
+    }
+
+    function refreshOutline() {
+        const container = $('#sidebarOutline');
+        const cards = $$('.card-item');
+        container.innerHTML = cards.map((card, idx) => {
+            const prompt = $('.row-image-prompt', card).value.trim() || '空分镜...';
+            const status = getCardProgressState(card);
+            let progressClass = '';
+            if (status === 'processing') progressClass = 'progress-processing';
+            if (status === 'completed') progressClass = 'progress-completed';
+
+            return `<div class="outline-item flex flex-col gap-1 p-3 rounded-xl" data-target="${card.id}">
+                    <div class="flex items-center justify-between pointer-events-none">
+                        <span class="text-[10px] font-black text-slate-400 uppercase">分镜 ${idx + 1}</span>
+                        <div class="text-slate-300">⋮⋮</div>
+                    </div>
+                    <span class="text-[11px] font-bold text-slate-600 truncate pointer-events-none">${escapeHtml(prompt)}</span>
+                    <div class="progress-bar-container"><div class="progress-fill ${progressClass}"></div></div>
+                </div>`;
+        }).join('');
+        cards.forEach((card, idx) => {
+            // 同步展示序号 + 导出序号：拖拽排序后按当前顺序重排
+            if ($('.task-badge', card)) $('.task-badge', card).textContent = `TASK #${idx + 1}`;
+            const idxInput = $('.row-index', card);
+            if (idxInput) idxInput.value = String(idx + 1);
+        });
+    }
+
+    function addCard(data = {}) {
+        const id = 'card-' + Date.now() + Math.floor(Math.random() * 1000);
+        const html = `
+            <div id="${id}" class="card-item card-pro p-6 flex flex-col gap-5" data-polish-status="idle" data-image-status="idle" data-tts-status="idle">
+                <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-3"><div class="drag-handle w-6 h-8 flex items-center justify-center text-slate-300 cursor-grab hover:text-indigo-500">⋮⋮</div><span class="task-badge text-[10px] font-black bg-slate-900 text-white px-2 py-0.5 rounded tracking-tighter">TASK</span><input type="hidden" class="row-index" value="${escapeHtml(data.index || '')}"></div>
+                    <button data-action="remove-card" class="text-slate-300 hover:text-red-500"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                      <div class="flex gap-3 items-end">
+                        <div class="generated-thumb">
+                          <input type="file" class="manual-image-input hidden" accept="image/*">
+                          <button data-action="clear-image" class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white border border-slate-200 text-[10px] font-bold text-slate-500 hover:text-red-500">×</button>
+                          <button data-action="preview-image" class="thumb-image-btn" title="点击放大">
+                            <img class="gen-image-thumb" alt="generated thumbnail"/>
+                          </button>
+                          <button data-action="pick-image" class="thumb-upload-drop" title="点击上传或拖入图片">
+                            <span class="text-base leading-none">+</span>
+                            <span>点击上传图片</span>
+                            <span class="text-[9px] opacity-70">或拖入到这里</span>
+                          </button>
+                          <div class="thumb-hover-preview">
+                            <img class="gen-image-hover" alt="generated hover preview"/>
+                          </div>
+                        </div>
+                        <div class="space-y-2 flex-1">
+                          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">原始文案素材</label>
+                          <textarea class="row-content-display hidden">${escapeHtml(data.content || '')}</textarea>
+                          <div class="content-lines"></div>
+                        </div>
+                      </div>
+                      <div class="flex gap-2 justify-end">
+                        <button data-action="insert-card-below" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">+ 插入分镜</button>
+                        <button data-action="tts-generate-all" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">转换所有</button>
+                        <button data-action="move-content-up" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">↑ 上移首行</button>
+                        <button data-action="move-content-down" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200">↓ 下移末行</button>
+                      </div>
+                      <audio class="tts-audio hidden" preload="none"></audio>
+                    </div>
+                    <div class="space-y-2">
+                      <label class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">核心画面描述 (原词)</label>
+                      <textarea class="row-image-prompt input-flat h-24 font-medium" placeholder="例如：一个在雨中奔跑的少年...">${escapeHtml(data.imagePrompt || '')}</textarea>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                  ${types.filter(t=>cardChipTypeIds.includes(t.id)).map(t => `
+                    <div class="space-y-2">
+                      <div class="flex justify-between items-center">
+                        <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest">${escapeHtml(t.label)}</label>
+                      </div>
+                      <div class="preset-chip-group flex flex-wrap gap-2" data-type="${t.id}">
+                        ${repo[t.id].map(item => `<div class="preset-chip" data-name="${escapeHtml(item.name)}" data-type="${t.id}" data-action="toggle-preset-chip">${escapeHtml(item.name)}</div>`).join('')}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+                <div class="flex justify-between items-center pt-2 border-t border-slate-50"><button data-action="toggle-preview" class="text-xs font-bold text-slate-400 hover:text-indigo-600 flex items-center gap-1">▼ 展开指令微调</button><div class="flex items-center gap-2"><button data-action="gen-image" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-lg">🎨 生图</button><button data-action="generate" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-lg">✨ AI 润色</button></div></div>
+                <div class="editor-container"><div class="px-5 py-2 border-b border-white/5 flex justify-between items-center"><span class="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">Prompt Editor</span><button data-action="reset-auto" class="text-[9px] font-bold text-indigo-400">重置自动生成</button></div><textarea class="editor-textarea no-scrollbar"></textarea></div>
+                <div class="result-area hidden bg-indigo-600 rounded-2xl p-6 text-white"><div class="flex justify-between items-center mb-3"><div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-white animate-pulse"></span><span class="text-[10px] font-black uppercase tracking-widest opacity-80">AI Result</span></div><div class="flex items-center gap-2"><button data-action="copy" class="bg-white/10 hover:bg-white/20 px-3 py-1 rounded-lg text-[10px] font-bold border border-white/10">复制</button></div></div><textarea class="res-content w-full bg-transparent text-sm font-medium outline-none border-none resize-none leading-relaxed h-32 no-scrollbar"></textarea></div>
+            </div>`;
+        $('#cardContainer').insertAdjacentHTML('beforeend', html);
+        const cardEl = document.getElementById(id);
+        initContentLines(cardEl, data.content || '');
+        $('.row-image-prompt', cardEl).addEventListener('input', () => { updatePreview(id); refreshOutline(); });
+        $('.editor-textarea', cardEl).addEventListener('input', () => updatePreview(id, true));
+        initCardTtsAudio(cardEl);
+        const thumbWrap = $('.generated-thumb', cardEl);
+        if (thumbWrap) {
+            ['dragenter', 'dragover'].forEach(evt => {
+                thumbWrap.addEventListener(evt, (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    thumbWrap.classList.add('is-dragover');
+                });
+            });
+            ['dragleave', 'dragend', 'drop'].forEach(evt => {
+                thumbWrap.addEventListener(evt, (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    thumbWrap.classList.remove('is-dragover');
+                });
+            });
+            thumbWrap.addEventListener('drop', (ev) => {
+                const file = ev.dataTransfer?.files?.[0];
+                if (!file || !file.type || !file.type.startsWith('image/')) return;
+                setCardImage(cardEl, URL.createObjectURL(file));
+            });
+        }
+        updatePreview(id); refreshOutline();
+        return cardEl;
+    }
+    function insertCardBelow(cardEl, data = {}){
+      const newCard = addCard(data);
+      if (!newCard || !cardEl) return newCard;
+      cardEl.insertAdjacentElement('afterend', newCard);
+      refreshOutline();
+      return newCard;
+    }
+
+    function getTagContents(cardEl, typeId){ 
+        return $$( `.preset-chip[data-type="${typeId}"].active`, cardEl ).map(chip => {
+            const name = chip.dataset.name;
+            const liveItem = repo[typeId].find(i => i.name === name);
+            return liveItem ? liveItem.content : '';
+        }).filter(Boolean).join('; ');
+    }
+
+    function getContentLinesText(cardEl){
+      const vals = $$('.content-line-input', cardEl).map(i => (i.value || '').trim()).filter(Boolean);
+      return vals.join('\n');
+    }
+    function getContentLinesArray(cardEl){
+      return $$('.content-line-input', cardEl).map(i => (i.value || '').trim()).filter(Boolean);
+    }
+    function syncContentTextarea(cardEl){
+      const hidden = $('.row-content-display', cardEl);
+      if (!hidden) return;
+      hidden.value = getContentLinesText(cardEl);
+    }
+    function appendContentLine(cardEl, value=''){
+      const wrap = $('.content-lines', cardEl);
+      if (!wrap) return;
+      const row = document.createElement('div');
+      row.className = 'content-line-row';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'content-line-input';
+      input.value = value;
+      input.dataset.lastValue = value;
+      input.placeholder = '输入一行文案...';
+      input.addEventListener('input', () => {
+        const rows = $$('.content-line-row', cardEl);
+        const rowIdx = rows.indexOf(row);
+        const nextVal = input.value || '';
+        if ((input.dataset.lastValue || '') !== nextVal) {
+          clearCardTtsAtLine(cardEl, rowIdx);
+          input.dataset.lastValue = nextVal;
+        }
+        syncContentTextarea(cardEl);
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          appendContentLine(cardEl, '');
+          const lines = $$('.content-line-input', cardEl);
+          lines[lines.length - 1]?.focus();
+          syncContentTextarea(cardEl);
+        }
+        if (e.key === 'Backspace' && !input.value && $$('.content-line-input', cardEl).length > 1) {
+          e.preventDefault();
+          const lines = $$('.content-line-input', cardEl);
+          const idx = lines.indexOf(input);
+          row.remove();
+          const nextFocus = lines[Math.max(0, idx - 1)];
+          nextFocus?.focus();
+          syncContentTextarea(cardEl);
+          removeCardTtsAtLine(cardEl, idx);
+        }
+      });
+      const playBtn = document.createElement('button');
+      playBtn.type = 'button';
+      playBtn.className = 'content-line-play';
+      playBtn.dataset.action = 'play-line-tts';
+      playBtn.disabled = false;
+      playBtn.textContent = '转换';
+      const reconvertBtn = document.createElement('button');
+      reconvertBtn.type = 'button';
+      reconvertBtn.className = 'content-line-reconvert hidden';
+      reconvertBtn.dataset.action = 'reconvert-line-tts';
+      reconvertBtn.textContent = '重转';
+      row.appendChild(input);
+      row.appendChild(playBtn);
+      row.appendChild(reconvertBtn);
+      wrap.appendChild(row);
+      updateCardLinePlayButtons(cardEl);
+    }
+    function initContentLines(cardEl, text=''){
+      const wrap = $('.content-lines', cardEl);
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      const lines = (text || '').split('\n').map(t => t.trim()).filter(Boolean);
+      if (!lines.length) lines.push('');
+      lines.forEach(line => appendContentLine(cardEl, line));
+      syncContentTextarea(cardEl);
+    }
+    function setContentLinesFromArray(cardEl, lines){
+      const safe = Array.isArray(lines) ? lines.map(t => String(t || '').trim()).filter(Boolean) : [];
+      initContentLines(cardEl, safe.join('\n'));
+    }
+    function applyCardTtsPlaylist(cardEl, playlist){
+      const safe = Array.isArray(playlist) ? playlist.slice() : [];
+      const audioEl = $('.tts-audio', cardEl);
+      setCardTtsPlaylist(cardEl, safe);
+      if (audioEl) {
+        audioEl.pause();
+        cardEl._ttsCurrentLine = -1;
+        const hasAny = safe.some(Boolean);
+        if (hasAny) {
+          const keepSrc = audioEl.getAttribute('src') || '';
+          if (!keepSrc || !safe.includes(keepSrc)) {
+            const first = safe.find(Boolean) || '';
+            if (first) audioEl.src = first;
+          }
+          audioEl.classList.remove('hidden');
+        } else {
+          audioEl.removeAttribute('src');
+          audioEl.classList.add('hidden');
+        }
+      }
+      updateCardLinePlayButtons(cardEl);
+    }
+    function moveContentLineBetweenCards(cardEl, direction){
+      const cards = $$('.card-item');
+      const idx = cards.indexOf(cardEl);
+      if (idx === -1) return;
+
+      if (direction === 'down') {
+        const next = cards[idx + 1];
+        if (!next) { alert('已经是最后一个分镜'); return; }
+        const curLines = getContentLinesArray(cardEl);
+        if (!curLines.length) { alert('当前分镜没有可下移的文案行'); return; }
+        const curTts = getCardTtsPlaylist(cardEl);
+        const curTtsAligned = Array.from({ length: curLines.length }, (_, i) => curTts[i] || '');
+        const nextLines = getContentLinesArray(next);
+        const nextTts = getCardTtsPlaylist(next);
+        const nextTtsAligned = Array.from({ length: nextLines.length }, (_, i) => nextTts[i] || '');
+
+        const moved = curLines.pop();
+        const movedTts = curTtsAligned.pop() || '';
+        nextLines.unshift(moved);
+        nextTtsAligned.unshift(movedTts);
+
+        setContentLinesFromArray(cardEl, curLines);
+        applyCardTtsPlaylist(cardEl, curTtsAligned);
+        setContentLinesFromArray(next, nextLines);
+        applyCardTtsPlaylist(next, nextTtsAligned);
+        return;
+      }
+
+      if (direction === 'up') {
+        const prev = cards[idx - 1];
+        if (!prev) { alert('已经是第一个分镜'); return; }
+        const curLines = getContentLinesArray(cardEl);
+        if (!curLines.length) { alert('当前分镜没有可上移的文案行'); return; }
+        const curTts = getCardTtsPlaylist(cardEl);
+        const curTtsAligned = Array.from({ length: curLines.length }, (_, i) => curTts[i] || '');
+        const prevLines = getContentLinesArray(prev);
+        const prevTts = getCardTtsPlaylist(prev);
+        const prevTtsAligned = Array.from({ length: prevLines.length }, (_, i) => prevTts[i] || '');
+
+        const moved = curLines.shift();
+        const movedTts = curTtsAligned.shift() || '';
+        prevLines.push(moved);
+        prevTtsAligned.push(movedTts);
+
+        setContentLinesFromArray(cardEl, curLines);
+        applyCardTtsPlaylist(cardEl, curTtsAligned);
+        setContentLinesFromArray(prev, prevLines);
+        applyCardTtsPlaylist(prev, prevTtsAligned);
+      }
+    }
+    function getCardTtsText(cardEl){
+      return ($('.row-content-display', cardEl)?.value || '').trim();
+    }
+    function clearCardTts(cardEl){
+      const audioEl = $('.tts-audio', cardEl);
+      const oldList = getCardTtsPlaylist(cardEl);
+      oldList.forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} });
+      const oldUrl = cardEl?.dataset?.ttsUrl || '';
+      if (oldUrl && !oldList.includes(oldUrl)) URL.revokeObjectURL(oldUrl);
+      if (cardEl?.dataset) delete cardEl.dataset.ttsUrl;
+      setCardTtsPlaylist(cardEl, []);
+      if (audioEl) {
+        cardEl._ttsCurrentLine = -1;
+        audioEl.pause();
+        audioEl.removeAttribute('src');
+        audioEl.classList.add('hidden');
+      }
+      updateCardLinePlayButtons(cardEl);
+    }
+    async function generateTtsForCard(cardEl, btnEl, opts = {}){
+      const silent = !!opts?.silent;
+      const lines = getCardTtsLines(cardEl);
+      if (!lines.length) {
+        if (!silent) alert('当前分镜没有可转换语音的文案');
+        throw new Error('EMPTY_TTS_TEXT');
+      }
+      const ttsCfg = loadTtsSettings();
+      const audioEl = $('.tts-audio', cardEl);
+      if (!audioEl) return;
+      setCardTaskStatus(cardEl, 'tts', 'processing');
+      const oldText = btnEl?.textContent || '';
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.textContent = '转换中...';
+      }
+      try {
+        const blobs = [];
+        for (let i = 0; i < lines.length; i++) {
+          if (btnEl) btnEl.textContent = `转换中 ${i + 1}/${lines.length}...`;
+          const res = await fetch(TTS_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: lines[i],
+              voice: ttsCfg.voice,
+              rate: rateToEdge(ttsCfg.ratePct),
+              volume: volumeToEdge(ttsCfg.volumePct),
+              pitch: pitchToEdge(ttsCfg.pitchHz),
+              word_boundary: !!ttsCfg.wordBoundary,
+              sentence_boundary: !!ttsCfg.sentenceBoundary,
+              enable_metadata: !!ttsCfg.enableMetadata,
+              connect_timeout: ttsCfg.connectTimeout === '' ? null : Number(ttsCfg.connectTimeout),
+              receive_timeout: ttsCfg.receiveTimeout === '' ? null : Number(ttsCfg.receiveTimeout),
+              proxy: ttsCfg.proxy || null
+            })
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const rawBlob = await res.blob();
+          const blob = await applyTtsPostProcess(rawBlob, ttsCfg).catch((err) => {
+            console.warn('TTS post process skipped:', err);
+            return rawBlob;
+          });
+          blobs.push(blob);
+        }
+
+        clearCardTts(cardEl);
+        const urls = blobs.map(b => URL.createObjectURL(b));
+        setCardTtsPlaylist(cardEl, urls);
+        const first = urls[0];
+        cardEl.dataset.ttsUrl = first || '';
+        audioEl.src = first || '';
+        audioEl.classList.remove('hidden');
+        cardEl._ttsCurrentLine = -1;
+        updateCardLinePlayButtons(cardEl);
+        setCardTaskStatus(cardEl, 'tts', 'completed');
+      } catch (err) {
+        console.error(err);
+        setCardTaskStatus(cardEl, 'tts', 'idle');
+        if (!silent) alert('语音转换失败。请确认本地 TTS 服务已启动（http://127.0.0.1:5050/api/tts）。');
+        throw err;
+      } finally {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.textContent = oldText || '🔊 转换语音';
+        }
+      }
+    }
+    
+    function updatePreview(cardId, isManualUpdate=false) {
+      const card = document.getElementById(cardId); if (!card || isManualUpdate) return;
+      const roleVal = getTagContents(card, 'role'), sceneVal = getTagContents(card, 'scene'), instrTemplates = getTagContents(card, 'instruction');
+      const imagePrompt = $('.row-image-prompt', card).value;
+      const paramList = [];
+      if (roleVal) paramList.push(`角色：${roleVal}`); 
+      if (sceneVal) paramList.push(`场景：${sceneVal}`); 
+      if (imagePrompt) paramList.push(`原词：${imagePrompt}`);
+      let finalOutput = instrTemplates || ""; if (paramList.length > 0) finalOutput += (finalOutput ? "\n\n" : "") + "指令参数：\n" + paramList.join('\n');
+      $('.editor-textarea', card).value = finalOutput.trim() || "等待输入...";
+    }
+
+    function updateAllCards() {
+        $$('.card-item').forEach(card => {
+            types.filter(t => cardChipTypeIds.includes(t.id)).forEach(t => {
+                const group = card.querySelector(`.preset-chip-group[data-type="${t.id}"]`);
+                if (group) {
+                    group.innerHTML = repo[t.id].map(item => 
+                        `<div class="preset-chip" data-name="${escapeHtml(item.name)}" data-type="${t.id}" data-action="toggle-preset-chip">${escapeHtml(item.name)}</div>`
+                    ).join('');
+                }
+            });
+            updatePreview(card.id);
+        });
+    }
+
+    function getCardOrderIndex(cardEl){
+      const cards = $$('.card-item');
+      const idx = cards.indexOf(cardEl);
+      return idx >= 0 ? idx : 0;
+    }
+
+    async function getDirectoryHandleByMode(mode, askIfMissing=false){
+      if (!window.showDirectoryPicker) return null;
+      const cfg = loadComfyCfg();
+      let dirKey = '';
+      let labelField = '';
+      if (mode === 'export-images') { dirKey = DIR_KEY_EXPORT_IMAGES; labelField = 'exportImagePathLabel'; }
+      if (mode === 'export-csv') { dirKey = DIR_KEY_EXPORT_CSV; labelField = 'exportCsvPathLabel'; }
+      if (mode === 'project-save') { dirKey = DIR_KEY_PROJECT_SAVE; labelField = 'projectSavePathLabel'; }
+      if (mode === 'auto-image') { dirKey = DIR_KEY_AUTO_IMAGE; labelField = 'autoSaveImagePathLabel'; }
+
+      let handle = null;
+      if (mode === 'export-images') handle = exportImageDirHandle;
+      if (mode === 'export-csv') handle = exportCsvDirHandle;
+      if (mode === 'project-save') handle = projectSaveDirHandle;
+      if (mode === 'auto-image') handle = autoSaveImageDirHandle;
+
+      if (!handle) {
+        try { handle = await idbGetHandle(dirKey); } catch (e) { handle = null; }
+      }
+      if (handle && !(await verifyDirPermission(handle, askIfMissing))) handle = null;
+
+      if (!handle && askIfMissing) {
+        try { handle = await pickDirectoryAndStore(dirKey); } catch (e) { handle = null; }
+      }
+      if (!handle) return null;
+
+      if (mode === 'export-images') exportImageDirHandle = handle;
+      if (mode === 'export-csv') exportCsvDirHandle = handle;
+      if (mode === 'project-save') projectSaveDirHandle = handle;
+      if (mode === 'auto-image') autoSaveImageDirHandle = handle;
+
+      if ((handle.name || '') !== (cfg[labelField] || '')) {
+        cfg[labelField] = handle.name || '';
+        saveComfyCfg(cfg);
+      }
+      return handle;
+    }
+
+    async function writeBlobToDir(handle, filename, blob){
+      const fh = await handle.getFileHandle(filename, { create: true });
+      const writable = await fh.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    }
+
+    async function srcToBlob(src){
+      if (!src) return null;
+      return await fetch(src).then(r => r.blob());
+    }
+
+    async function autoSaveCardImage(cardEl){
+      const handle = await getDirectoryHandleByMode('auto-image', false);
+      if (!handle) return;
+      const idx = getCardOrderIndex(cardEl);
+      const src = $('.gen-image-thumb', cardEl)?.getAttribute('src');
+      if (!src) return;
+      const blob = await srcToBlob(src);
+      if (!blob) return;
+      const filename = `分镜${idx + 1}${extFromType(blob.type)}`;
+      await writeBlobToDir(handle, filename, blob);
+    }
+
+    function setCardImage(cardEl, objectUrl, opts = {}){
+      const thumbWrap = $('.generated-thumb', cardEl);
+      const thumbEl = $('.gen-image-thumb', cardEl);
+      const hoverEl = $('.gen-image-hover', cardEl);
+      const oldUrl = thumbWrap?.dataset.objectUrl;
+      if (oldUrl) URL.revokeObjectURL(oldUrl);
+      if (thumbEl) thumbEl.src = objectUrl;
+      if (hoverEl) hoverEl.src = objectUrl;
+      if (thumbWrap) {
+        thumbWrap.dataset.objectUrl = objectUrl;
+        thumbWrap.classList.add('has-image');
+      }
+      if (thumbEl && thumbWrap) {
+        thumbEl.onload = () => {
+          if (thumbEl.naturalWidth > 0 && thumbEl.naturalHeight > 0) {
+            thumbWrap.style.setProperty('--thumb-ratio', `${thumbEl.naturalWidth} / ${thumbEl.naturalHeight}`);
+          }
+        };
+        if (thumbEl.complete && thumbEl.naturalWidth > 0 && thumbEl.naturalHeight > 0) {
+          thumbWrap.style.setProperty('--thumb-ratio', `${thumbEl.naturalWidth} / ${thumbEl.naturalHeight}`);
+        }
+      }
+      setCardTaskStatus(cardEl, 'image', 'completed');
+      const cfg = loadComfyCfg();
+      if (opts.autoSave !== false && cfg.autoSaveEnabled) autoSaveCardImage(cardEl).catch(err => console.error('auto save image failed', err));
+    }
+
+    async function generateForCard(cardEl, btnEl){
+      const finalCommand = $('.editor-textarea', cardEl).value, api = currentAPI || repo.api[0];
+      if (!api?.key || !api?.url){ alert("请配置并选择 API"); return; }
+      setCardTaskStatus(cardEl, 'polish', 'processing');
+      btnEl.disabled = true; btnEl.textContent = "正在润色...";
+      try {
+        const response = await fetch(`${api.url.replace(/\/+$/,'')}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.key}` },
+          body: JSON.stringify({ model: api.model, messages: [{ role: 'system', content: "Optimize for AI image generation. Output in English ONLY." }, { role: 'user', content: finalCommand }] })
+        });
+        const data = await response.json(), content = data?.choices?.[0]?.message?.content?.trim();
+        if (!content) throw new Error();
+        $('.result-area', cardEl).classList.remove('hidden'); $('.res-content', cardEl).value = content;
+        setCardTaskStatus(cardEl, 'polish', 'completed');
+      } catch (err) { alert("接口响应失败"); setCardTaskStatus(cardEl, 'polish', 'idle'); }
+      finally { btnEl.disabled = false; btnEl.textContent = "✨ AI 润色"; }
+    }
+
+    async function generateImageForCard(cardEl, btnEl = null){
+      const polishedPrompt = ($('.res-content', cardEl)?.value || '').trim();
+      const corePrompt = ($('.row-image-prompt', cardEl)?.value || '').trim();
+      const promptText = polishedPrompt || corePrompt;
+      if (!promptText) return false;
+
+      const negText = '';
+      const oldBtnText = btnEl ? btnEl.textContent : '';
+      setCardTaskStatus(cardEl, 'image', 'processing');
+      if (btnEl) { btnEl.disabled = true; btnEl.textContent = '生图中...'; }
+      try {
+          const { blob } = await comfyGenerateImage(promptText, negText);
+          const url = URL.createObjectURL(blob);
+          setCardImage(cardEl, url);
+          return true;
+      } catch (err) {
+          setCardTaskStatus(cardEl, 'image', 'idle');
+          throw err;
+      } finally {
+          if (btnEl) { btnEl.disabled = false; btnEl.textContent = oldBtnText || '🎨 生图'; }
+      }
+    }
+
+    function getCardSceneName(cardEl, idx){
+      return `分镜${idx + 1}`;
+    }
+
+    function sanitizeFileName(name){
+      return (name || 'untitled')
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 80) || 'untitled';
+    }
+
+    function extFromType(type){
+      if (!type) return '.png';
+      if (type.includes('png')) return '.png';
+      if (type.includes('jpeg') || type.includes('jpg')) return '.jpg';
+      if (type.includes('webp')) return '.webp';
+      return '.png';
+    }
+
+    async function exportImagesByRange(start, end){
+      const cards = $$('.card-item');
+      const useFS = !!window.showDirectoryPicker;
+      let dirHandle = null;
+      if (useFS) dirHandle = await getDirectoryHandleByMode('export-images', true);
+      if (useFS && !dirHandle) { alert('未选择导出图片目录，已取消导出。'); return; }
+      const usedNames = new Set();
+      let okCount = 0;
+      let skipCount = 0;
+      for (let i = start; i <= end; i++) {
+        const card = cards[i];
+        if (!card) continue;
+        const src = $('.gen-image-thumb', card)?.getAttribute('src');
+        if (!src) { skipCount++; continue; }
+        try {
+          const blob = await fetch(src).then(r => r.blob());
+          const base = sanitizeFileName(getCardSceneName(card, i));
+          const ext = extFromType(blob.type);
+          let filename = `${base}${ext}`;
+          let seq = 2;
+          while (usedNames.has(filename)) {
+            filename = `${base}_${seq}${ext}`;
+            seq += 1;
+          }
+          usedNames.add(filename);
+
+          if (dirHandle) {
+            await writeBlobToDir(dirHandle, filename, blob);
+          } else {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+          }
+          okCount++;
+        } catch (err) {
+          console.error(err);
+          skipCount++;
+        }
+      }
+      const latestCfg = loadComfyCfg();
+      const pathLabel = latestCfg.exportImagePathLabel ? `\n保存位置：${latestCfg.exportImagePathLabel}` : '';
+      alert(`导出完成：成功 ${okCount} 张，跳过 ${skipCount} 张。${pathLabel}`);
+    }
+
+    function openBatchModal(mode){
+      batchMode = mode;
+      const isImage = mode === 'image';
+      const isExportImages = mode === 'export-images';
+      $('#processModalTitle').textContent = isImage
+        ? '批量生图范围设定'
+        : (isExportImages ? '导出分镜图片范围设定' : '批量润色范围设定');
+      $('#confirmProcessBtn').textContent = isImage
+        ? '确认并批量生图'
+        : (isExportImages ? '确认并导出图片' : '确认并批量润色');
+      $('#confirmProcessBtn').className = (isImage || isExportImages)
+        ? 'w-full py-3 bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-100 hover:bg-emerald-700 transition-all'
+        : 'w-full py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all';
+      $('#totalCardsCount').textContent = $$('.card-item').length;
+      showModal($('#processModal'));
+    }
+    function getBatchTtsCandidates(){
+      const cards = $$('.card-item');
+      return cards.map((card, idx) => {
+        const lines = getContentLinesArray(card).filter(Boolean);
+        return {
+          idx: idx + 1,
+          id: card.id,
+          lineCount: lines.length,
+          lines,
+          card
+        };
+      }).filter(i => i.lineCount > 0);
+    }
+    function setBatchTtsRowStatus(cardId, statusText, colorClass='text-slate-500'){
+      const row = document.querySelector(`.batch-tts-row[data-card-id="${cardId}"]`);
+      if (!row) return;
+      const el = row.querySelector('.batch-tts-status');
+      if (!el) return;
+      el.className = `batch-tts-status text-[11px] font-bold ${colorClass}`;
+      el.textContent = statusText;
+    }
+    function updateBatchTtsRowProgress(cardId){
+      const item = getBatchTtsCandidates().find(i => i.id === cardId);
+      if (!item) return;
+      const total = Number(item.lineCount || 0);
+      const converted = item.lines.reduce((sum, _line, i) => sum + (getCardTtsUrlAtLine(item.card, i) ? 1 : 0), 0);
+      if (total <= 0) {
+        setBatchTtsRowStatus(cardId, '待转换', 'text-slate-500');
+        return;
+      }
+      if (converted <= 0) {
+        setBatchTtsRowStatus(cardId, '待转换', 'text-slate-500');
+        return;
+      }
+      if (converted < total) {
+        setBatchTtsRowStatus(cardId, `${converted}/${total}`, 'text-sky-600');
+        return;
+      }
+      setBatchTtsRowStatus(cardId, '已转换', 'text-emerald-600');
+    }
+    function setBatchTtsProgress(done, total, currentLabel=''){
+      const safeTotal = Math.max(0, Number(total) || 0);
+      const safeDone = Math.max(0, Number(done) || 0);
+      const pct = safeTotal ? Math.min(100, Math.round((safeDone / safeTotal) * 100)) : 0;
+      const text = safeTotal
+        ? `进度：${safeDone}/${safeTotal}${currentLabel ? ` · 当前：${currentLabel}` : ''}`
+        : '待开始';
+      if ($('#batchTtsProgressText')) $('#batchTtsProgressText').textContent = text;
+      if ($('#batchTtsProgressFill')) $('#batchTtsProgressFill').style.width = `${pct}%`;
+    }
+    function setBatchTtsLineStatus(cardId, lineIndex, statusText, colorClass='text-slate-500'){
+      const lineEl = document.querySelector(`.batch-tts-line-item[data-card-id="${cardId}"][data-line-index="${lineIndex}"] .batch-tts-line-status`);
+      if (!lineEl) return;
+      lineEl.className = `batch-tts-line-status text-[10px] font-bold ${colorClass}`;
+      lineEl.textContent = statusText;
+    }
+    function setBatchTtsPlayBtnState(cardId, lineIndex, converted){
+      const btn = document.querySelector(`[data-action="batch-tts-play-line"][data-card-id="${cardId}"][data-line-index="${lineIndex}"]`);
+      if (!btn) return;
+      if (converted) {
+        btn.disabled = false;
+        btn.className = 'px-2 py-1 text-[10px] font-bold rounded-md bg-emerald-600 text-white hover:bg-emerald-700';
+      } else {
+        btn.disabled = true;
+        btn.className = 'px-2 py-1 text-[10px] font-bold rounded-md bg-slate-200 text-slate-400 cursor-not-allowed';
+      }
+      btn.textContent = '播放';
+    }
+    function getCardTtsUrlAtLine(cardEl, lineIndex){
+      const list = getCardTtsPlaylist(cardEl);
+      if (!Array.isArray(list)) return '';
+      return list[lineIndex] || '';
+    }
+    function renderBatchTtsList(){
+      const list = getBatchTtsCandidates();
+      const listEl = $('#batchTtsList');
+      if (!listEl) return;
+      if ($('#batchTtsCount')) $('#batchTtsCount').textContent = String(list.length);
+      if (!list.length) {
+        listEl.innerHTML = '<div class="text-xs text-slate-400 p-2">暂无可转换分镜（原始文案为空）</div>';
+        setBatchTtsProgress(0, 0, '');
+        return;
+      }
+      listEl.innerHTML = list.map(item => `
+        <div class="batch-tts-row p-3 rounded-xl border border-slate-100 bg-white hover:bg-slate-50" data-card-id="${escapeHtml(item.id)}">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <input type="checkbox" class="batch-tts-card-check w-4 h-4 accent-sky-600" data-card-id="${escapeHtml(item.id)}" checked>
+              <div class="min-w-0 cursor-pointer" title="点击展开/收起">
+                <div class="text-xs font-bold text-slate-700 truncate">分镜${item.idx}: ${item.lineCount}条</div>
+                <div class="text-[10px] text-slate-400 truncate">${escapeHtml(($('.row-image-prompt', item.card)?.value || '未填写核心画面描述').trim())}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button data-action="batch-tts-toggle-lines" data-card-id="${escapeHtml(item.id)}" class="batch-tts-toggle-btn px-2 py-1 text-[10px] font-bold rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200">展开</button>
+              <div class="batch-tts-status text-[11px] font-bold text-slate-500">待转换</div>
+            </div>
+          </div>
+          <div class="batch-tts-lines hidden mt-2 pl-7 space-y-1">
+            ${item.lines.map((line, lineIdx) => `
+              <div class="batch-tts-line-item flex items-center gap-2 text-[11px] text-slate-600 p-1.5 rounded-lg bg-slate-50"
+                   data-card-id="${escapeHtml(item.id)}" data-line-index="${lineIdx}">
+                <input type="checkbox" class="batch-tts-line-check w-3.5 h-3.5 accent-sky-600"
+                       data-card-id="${escapeHtml(item.id)}" data-line-index="${lineIdx}" checked>
+                <span class="text-[10px] text-slate-400">第${lineIdx + 1}条</span>
+                <span class="truncate flex-1">${escapeHtml(line)}</span>
+                <span class="batch-tts-line-status text-[10px] font-bold ${getCardTtsUrlAtLine(item.card, lineIdx) ? 'text-emerald-600' : 'text-slate-400'}">${getCardTtsUrlAtLine(item.card, lineIdx) ? '已转换' : '未转换'}</span>
+                <button data-action="batch-tts-convert-line" data-card-id="${escapeHtml(item.id)}" data-line-index="${lineIdx}" class="px-2 py-1 text-[10px] font-bold rounded-md bg-sky-600 text-white hover:bg-sky-700">转换</button>
+                <button data-action="batch-tts-play-line" data-card-id="${escapeHtml(item.id)}" data-line-index="${lineIdx}" class="${getCardTtsUrlAtLine(item.card, lineIdx) ? 'px-2 py-1 text-[10px] font-bold rounded-md bg-emerald-600 text-white hover:bg-emerald-700' : 'px-2 py-1 text-[10px] font-bold rounded-md bg-slate-200 text-slate-400 cursor-not-allowed'}" ${getCardTtsUrlAtLine(item.card, lineIdx) ? '' : 'disabled'}>播放</button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+      const totalLines = list.reduce((sum, it) => sum + (it.lineCount || 0), 0);
+      setBatchTtsProgress(0, totalLines, '');
+      list.forEach(item => updateBatchTtsRowProgress(item.id));
+    }
+    function getSelectedBatchTtsLineTasks(opts = {}){
+      const convertAll = !!opts.convertAll;
+      const includeConverted = opts.includeConverted !== false;
+      const cards = new Map(getBatchTtsCandidates().map(i => [i.id, i]));
+      const tasks = [];
+      if (convertAll) {
+        cards.forEach(item => {
+          item.lines.forEach((lineText, lineIndex) => {
+            const hasAudio = !!getCardTtsUrlAtLine(item.card, lineIndex);
+            if (!includeConverted && hasAudio) return;
+            tasks.push({ card: item.card, cardId: item.id, sceneIdx: item.idx, lineIndex, lineText });
+          });
+        });
+        return tasks;
+      }
+      $$('.batch-tts-line-check:checked').forEach(chk => {
+        const cardId = chk.dataset.cardId || '';
+        const lineIndex = Number(chk.dataset.lineIndex || -1);
+        const item = cards.get(cardId);
+        if (!item) return;
+        if (!Number.isFinite(lineIndex) || lineIndex < 0 || lineIndex >= item.lines.length) return;
+        tasks.push({
+          card: item.card,
+          cardId: item.id,
+          sceneIdx: item.idx,
+          lineIndex,
+          lineText: item.lines[lineIndex]
+        });
+      });
+      return tasks;
+    }
+    async function synthesizeTtsBlobForText(text, ttsCfg){
+      const res = await fetch(TTS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          voice: ttsCfg.voice,
+          rate: rateToEdge(ttsCfg.ratePct),
+          volume: volumeToEdge(ttsCfg.volumePct),
+          pitch: pitchToEdge(ttsCfg.pitchHz),
+          word_boundary: !!ttsCfg.wordBoundary,
+          sentence_boundary: !!ttsCfg.sentenceBoundary,
+          enable_metadata: !!ttsCfg.enableMetadata,
+          connect_timeout: ttsCfg.connectTimeout === '' ? null : Number(ttsCfg.connectTimeout),
+          receive_timeout: ttsCfg.receiveTimeout === '' ? null : Number(ttsCfg.receiveTimeout),
+          proxy: ttsCfg.proxy || null
+        })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rawBlob = await res.blob();
+      return applyTtsPostProcess(rawBlob, ttsCfg).catch((err) => {
+        console.warn('TTS post process skipped:', err);
+        return rawBlob;
+      });
+    }
+    function setCardTtsBlobAtLine(cardEl, lineIndex, blob){
+      const lines = getCardTtsLines(cardEl);
+      const oldList = getCardTtsPlaylist(cardEl);
+      const next = Array.from({ length: lines.length }, (_, i) => oldList[i] || '');
+      const oldUrl = next[lineIndex];
+      if (oldUrl) { try { URL.revokeObjectURL(oldUrl); } catch(e){} }
+      next[lineIndex] = URL.createObjectURL(blob);
+      setCardTtsPlaylist(cardEl, next);
+      const audioEl = $('.tts-audio', cardEl);
+      if (audioEl) audioEl.classList.remove('hidden');
+      updateCardLinePlayButtons(cardEl);
+    }
+    async function runBatchTts(opts = {}){
+      const convertAll = !!opts.convertAll;
+      const includeConverted = opts.includeConverted !== false;
+      if (batchTtsRunning) return;
+      const rows = $$('.batch-tts-row');
+      if (!rows.length) { alert('暂无可转换分镜'); return; }
+      const tasks = getSelectedBatchTtsLineTasks({ convertAll, includeConverted });
+      if (!tasks.length) {
+        if (convertAll && !includeConverted) {
+          if ($('#batchTtsProgressText')) $('#batchTtsProgressText').textContent = '没有未转换条目';
+          return;
+        }
+        alert('未找到可转换分镜');
+        return;
+      }
+      const ttsCfg = loadTtsSettings();
+      if (!ttsCfg.voice) { alert('请先在语音设置中选择音色'); return; }
+
+      batchTtsRunning = true;
+      const actionBtns = ['batch-tts-run-selected', 'batch-tts-run-all', 'batch-tts-run-all-overwrite', 'batch-tts-select-all', 'batch-tts-unselect-all', 'close-batch-tts-modal']
+        .map(act => document.querySelector(`[data-action="${act}"]`))
+        .filter(Boolean);
+      actionBtns.forEach(b => b.disabled = true);
+      const selectedCardIds = Array.from(new Set(tasks.map(t => t.cardId)));
+      rows.forEach(r => {
+        const id = r.dataset.cardId;
+        if (!id || selectedCardIds.includes(id)) return;
+        setBatchTtsRowStatus(id, '未选择', 'text-slate-400');
+      });
+
+      let done = 0, ok = 0, fail = 0;
+      try {
+        setBatchTtsProgress(0, tasks.length, '');
+        for (let i = 0; i < tasks.length; i++) {
+          const task = tasks[i];
+          const label = `分镜${task.sceneIdx} 第${task.lineIndex + 1}条`;
+          updateBatchTtsRowProgress(task.cardId);
+          setBatchTtsLineStatus(task.cardId, task.lineIndex, '转换中...', 'text-sky-600');
+          setBatchTtsProgress(done, tasks.length, label);
+          try {
+            const blob = await synthesizeTtsBlobForText(task.lineText, ttsCfg);
+            setCardTtsBlobAtLine(task.card, task.lineIndex, blob);
+            setCardTaskStatus(task.card, 'tts', 'completed');
+            updateBatchTtsRowProgress(task.cardId);
+            setBatchTtsLineStatus(task.cardId, task.lineIndex, '已转换', 'text-emerald-600');
+            setBatchTtsPlayBtnState(task.cardId, task.lineIndex, true);
+            ok++;
+          } catch (err) {
+            console.error(err);
+            updateBatchTtsRowProgress(task.cardId);
+            setBatchTtsLineStatus(task.cardId, task.lineIndex, '失败', 'text-rose-500');
+            setBatchTtsPlayBtnState(task.cardId, task.lineIndex, false);
+            fail++;
+          }
+          done++;
+          setBatchTtsProgress(done, tasks.length, label);
+        }
+        if ($('#batchTtsProgressText')) $('#batchTtsProgressText').textContent = `批量转换完成：成功 ${ok} 条，失败 ${fail} 条`;
+      } finally {
+        actionBtns.forEach(b => b.disabled = false);
+        batchTtsRunning = false;
+      }
+    }
+
+    function renderSegmentPresetOptions(){
+      const sel = $('#segPresetSelect');
+      if (!sel) return;
+      const list = repo.segment || [];
+      sel.innerHTML = list.length
+        ? list.map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join('')
+        : '<option value="">（请先在 AI分词 管理里新增预设）</option>';
+    }
+
+    function parseSegmentOutput(content){
+      const txt = (content || '').trim();
+      if (!txt) return [];
+      const START = '_::~OUTPUT_START::~_';
+      const END = '_::~OUTPUT_END::~_';
+      const RECORD = '_::~RECORD::~_';
+      const FIELD = '_::~FIELD::~_';
+
+      // 新协议：_::~OUTPUT_START::~_ ... _::~OUTPUT_END::~_
+      // 每条记录：提示词内容 _::~FIELD::~_ 解说文案
+      // 记录间：_::~RECORD::~_
+      const startIdx = txt.indexOf(START);
+      const endIdx = txt.lastIndexOf(END);
+      if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+        const body = txt.slice(startIdx + START.length, endIdx).trim();
+        const records = body.split(RECORD).map(r => r.trim()).filter(Boolean);
+        const parsed = records.map(r => {
+          const fieldIdx = r.indexOf(FIELD);
+          if (fieldIdx === -1) return null;
+          const imagePrompt = r.slice(0, fieldIdx).trim();
+          const contentText = r.slice(fieldIdx + FIELD.length).trim();
+          if (!imagePrompt && !contentText) return null;
+          return { imagePrompt, content: contentText };
+        }).filter(Boolean);
+        if (parsed.length) return parsed;
+      }
+
+      const tryParseArray = (s) => {
+        try {
+          const d = JSON.parse(s);
+          if (!Array.isArray(d)) return [];
+          return d.map(item => {
+            if (typeof item === 'string') {
+              const t = item.trim();
+              return t ? { imagePrompt: '', content: t } : null;
+            }
+            if (item && typeof item === 'object') {
+              const contentText = String(item.text || item.content || '').trim();
+              const imagePrompt = String(item.imagePrompt || item.prompt || '').trim();
+              if (!contentText && !imagePrompt) return null;
+              return { imagePrompt, content: contentText };
+            }
+            return null;
+          }).filter(Boolean);
+        } catch (e) { return []; }
+      };
+      const direct = tryParseArray(txt);
+      if (direct.length) return direct;
+      const codeJson = txt.match(/```json\s*([\s\S]*?)```/i);
+      if (codeJson?.[1]) {
+        const inCode = tryParseArray(codeJson[1].trim());
+        if (inCode.length) return inCode;
+      }
+      const arrBlock = txt.match(/\[[\s\S]*\]/);
+      if (arrBlock?.[0]) {
+        const inBlock = tryParseArray(arrBlock[0]);
+        if (inBlock.length) return inBlock;
+      }
+      return txt.split('\n')
+        .map(l => l.replace(/^\s*(\d+[\.\)、:：-]\s*|[-•*]\s*)/, '').trim())
+        .filter(Boolean)
+        .map(t => ({ imagePrompt: '', content: t }));
+    }
+
+    async function readChatCompletionsStream(response, onDelta){
+      if (!response?.body) return '';
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let fullText = '';
+      let buf = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const lineRaw of lines) {
+          const line = lineRaw.trim();
+          if (!line || !line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') continue;
+          try {
+            const json = JSON.parse(payload);
+            const delta = json?.choices?.[0]?.delta?.content || '';
+            if (delta) {
+              fullText += delta;
+              if (onDelta) onDelta(fullText, delta);
+            }
+          } catch (e) {}
+        }
+      }
+      return fullText;
+    }
+
+    function appendSegmentLog(entry){
+      const logs = loadSegmentLogs();
+      logs.unshift(entry);
+      saveSegmentLogs(logs.slice(0, 100));
+    }
+
+    function renderSegmentLogList(){
+      const listEl = $('#segmentLogList');
+      if (!listEl) return;
+      const logs = loadSegmentLogs();
+      if (!logs.length) {
+        listEl.innerHTML = '<div class="text-xs text-slate-400 p-2">暂无日志</div>';
+        $('#segmentLogMeta').textContent = '请选择左侧日志查看原始结果';
+        $('#segmentLogRaw').value = '';
+        return;
+      }
+      listEl.innerHTML = logs.map(item => {
+        const time = item?.time ? new Date(item.time).toLocaleString() : '-';
+        const preset = escapeHtml(item?.presetName || '未命名预设');
+        const status = item?.ok ? '成功' : '失败';
+        const count = Number.isFinite(item?.recordCount) ? item.recordCount : 0;
+        return `<div class="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-100">
+            <div class="flex items-start justify-between gap-2">
+              <button data-action="view-segment-log" data-log-id="${escapeHtml(item.id)}" class="text-left flex-1 min-w-0">
+                <div class="text-[11px] font-bold text-slate-700 truncate">${preset}</div>
+                <div class="text-[10px] text-slate-400 mt-1">${escapeHtml(time)}</div>
+                <div class="text-[10px] text-slate-500 mt-1">状态：${status} · 记录：${count}</div>
+              </button>
+              <button data-action="delete-segment-log" data-log-id="${escapeHtml(item.id)}" class="px-2 py-1 text-[10px] font-bold rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-red-500">删除</button>
+            </div>
+          </div>`;
+      }).join('');
+      const first = logs[0];
+      if (first) {
+        $('#segmentLogMeta').textContent = `${new Date(first.time).toLocaleString()} · ${first.presetName || '未命名预设'} · ${first.ok ? '成功' : '失败'}`;
+        $('#segmentLogRaw').value = first.raw || '';
+      }
+    }
+
+    async function runAISegmentAndCreateCards(){
+      const api = currentAPI || repo.api[0];
+      if (!api?.key || !api?.url) { alert("请配置并选择 API"); return; }
+      const sourceText = ($('#segSourceText')?.value || '').trim();
+      if (!sourceText) { alert('请先输入原始文本'); return; }
+      const presetName = ($('#segPresetSelect')?.value || '').trim();
+      const preset = (repo.segment || []).find(i => i.name === presetName);
+      if (!preset?.content) { alert('请先在 AI分词 列表中配置并选择预设'); return; }
+      const liveOut = $('#segLiveOutput');
+      if (liveOut) liveOut.value = '';
+
+      const runBtn = $('#segmentRunBtn');
+      const stopBtn = $('#segmentStopBtn');
+      if (runBtn) { runBtn.disabled = true; runBtn.textContent = '分词中...'; }
+      if (stopBtn) stopBtn.disabled = false;
+      segmentAbortController = new AbortController();
+      try {
+        const reqBody = {
+          model: api.model,
+          stream: true,
+          messages: [
+            { role: 'system', content: "你是分镜分词助手。请严格按用户给定分隔符协议输出，不要输出协议外文字。" },
+            { role: 'user', content: `${preset.content}\n\n原始文本如下：\n${sourceText}` }
+          ]
+        };
+        let response = await fetch(`${api.url.replace(/\/+$/,'')}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.key}` },
+          body: JSON.stringify(reqBody),
+          signal: segmentAbortController.signal
+        });
+        if (!response.ok) {
+          const fallbackBody = { ...reqBody, stream: false };
+          response = await fetch(`${api.url.replace(/\/+$/,'')}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.key}` },
+            body: JSON.stringify(fallbackBody),
+            signal: segmentAbortController.signal
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        }
+        let content = '';
+        const ctype = response.headers.get('content-type') || '';
+        if (ctype.includes('text/event-stream') && response.body) {
+          content = await readChatCompletionsStream(response, (full) => {
+            if (liveOut) {
+              liveOut.value = full;
+              liveOut.scrollTop = liveOut.scrollHeight;
+            }
+          });
+        } else {
+          const data = await response.json();
+          content = data?.choices?.[0]?.message?.content?.trim() || '';
+          if (liveOut) liveOut.value = content;
+        }
+        const segments = parseSegmentOutput(content);
+        appendSegmentLog({
+          id: String(Date.now()) + Math.random().toString(36).slice(2, 8),
+          time: new Date().toISOString(),
+          presetName,
+          ok: segments.length > 0,
+          recordCount: segments.length,
+          raw: content
+        });
+        if (!segments.length) { alert('AI 分词结果为空，请调整预设后重试'); return; }
+        segments.forEach(seg => addCard({ imagePrompt: seg.imagePrompt || '', content: seg.content || '' }));
+        refreshOutline();
+        hideModal($('#segmentModal'));
+        alert(`AI 分词完成，已新增 ${segments.length} 个分镜卡片`);
+      } catch (err) {
+        console.error(err);
+        if (err?.name === 'AbortError') {
+          appendSegmentLog({
+            id: String(Date.now()) + Math.random().toString(36).slice(2, 8),
+            time: new Date().toISOString(),
+            presetName,
+            ok: false,
+            recordCount: 0,
+            raw: ($('#segLiveOutput')?.value || '').trim() || '用户手动停止生成'
+          });
+          alert('已停止生成');
+          return;
+        }
+        appendSegmentLog({
+          id: String(Date.now()) + Math.random().toString(36).slice(2, 8),
+          time: new Date().toISOString(),
+          presetName,
+          ok: false,
+          recordCount: 0,
+          raw: String(err?.message || 'AI 分词失败')
+        });
+        alert('AI 分词失败');
+      } finally {
+        segmentAbortController = null;
+        if (runBtn) { runBtn.disabled = false; runBtn.textContent = '开始分词并生成卡片'; }
+        if (stopBtn) stopBtn.disabled = true;
+      }
+    }
+
+    function initRepoUI() {
+      const apiSel = $('#apiPresetSelect'), apiIdx = apiSel.value;
+      apiSel.innerHTML = `<option value="">载入接口</option>` + repo.api.map((item, idx) => `<option value="${idx}">${escapeHtml(item.name)}</option>`).join('');
+      if(apiIdx) apiSel.value = apiIdx;
+      $('#repoPanels').innerHTML = types.filter(t => t.id !== 'api').map(t => `
+        <div class="space-y-1">
+          <div class="flex justify-between items-center px-1"><span class="text-[9px] font-bold text-slate-400 uppercase">${escapeHtml(t.label)}</span><button data-action="open-list" data-type="${t.id}" class="text-[9px] text-indigo-500 font-bold">管理</button></div>
+          ${cardChipTypeIds.includes(t.id)
+            ? `<select data-action="sync-all" data-type="${t.id}" class="w-full p-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-semibold outline-none cursor-pointer"><option value="">应用到全部卡片</option>${repo[t.id].map(item => `<option value="${escapeHtml(item.name)}">${escapeHtml(item.name)}</option>`).join('')}</select>`
+            : `<div class="w-full p-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-semibold text-slate-400">用于 AI 分词流程</div>`
+          }
+        </div>
+      `).join('');
+    }
+    function openComfyModal(){
+      const cfg = loadComfyCfg();
+      $('#comfyUrl').value = cfg.url || 'http://127.0.0.1:8188';
+
+      if (cfg.workflow) {
+        const textNodes = findComfyTextNodes(cfg.workflow);
+        fillComfyNodeSelect($('#comfyPosNode'), textNodes, cfg.posNode || '');
+        fillComfyNodeSelect($('#comfyNegNode'), textNodes, cfg.negNode || '');
+      } else {
+        fillComfyNodeSelect($('#comfyPosNode'), [], '');
+        fillComfyNodeSelect($('#comfyNegNode'), [], '');
+      }
+      populateComfyAdvancedMappings(cfg);
+      hydrateComfyValuesFromWorkflow(cfg, false);
+      $('#comfyValWidth').value = cfg.valWidth ?? '';
+      $('#comfyValHeight').value = cfg.valHeight ?? '';
+      $('#comfyValSeed').value = cfg.valSeed ?? '';
+      $('#comfyValSteps').value = cfg.valSteps ?? '';
+      $('#comfyValCfg').value = cfg.valCfg ?? '';
+      $('#comfyValSampler').value = cfg.valSampler ?? '';
+      $('#comfyValScheduler').value = cfg.valScheduler ?? '';
+      $('#comfyValModel').value = cfg.valModel ?? '';
+      $('#comfyValLoraName').value = cfg.valLoraName ?? '';
+      $('#comfyValLoraStrength').value = cfg.valLoraStrength ?? '';
+      $('#comfyValLoraClipStrength').value = cfg.valLoraClipStrength ?? '';
+      updateComfyCfgBadge();
+      showModal($('#comfyModal'));
+    }
+    function openPathModal(){
+      const cfg = loadComfyCfg();
+      $('#comfyExportImagePath').value = cfg.exportImagePathLabel || '';
+      $('#comfyExportCsvPath').value = cfg.exportCsvPathLabel || '';
+      $('#comfyProjectSavePath').value = cfg.projectSavePathLabel || '';
+      $('#comfyAutoSaveImagePath').value = cfg.autoSaveImagePathLabel || '';
+      $('#comfyAutoSaveEnabled').checked = cfg.autoSaveEnabled !== false;
+      showModal($('#pathModal'));
+    }
+
+    document.addEventListener('click', async (e) => {
+        if (e.target.id === 'imagePreviewModal') {
+            hideModal($('#imagePreviewModal'));
+            return;
+        }
+        const a = e.target.closest('[data-action]');
+        if (e.target.closest('#toggleSidebar')) {
+            const container = $('#sidebarContainer');
+            container.classList.toggle('is-collapsed');
+            $('#toggleIcon').innerHTML = container.classList.contains('is-collapsed') ? '<path d="M13 5l7 7-7 7M5 5l7 7-7 7"/>' : '<path d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>';
+            return;
+        }
+        const outlineItem = e.target.closest('.outline-item');
+        if (outlineItem) {
+            const targetEl = document.getElementById(outlineItem.dataset.target);
+            if (targetEl) {
+                $$('.outline-item').forEach(i => i.classList.remove('outline-active'));
+                outlineItem.classList.add('outline-active');
+                window.scrollTo({ top: targetEl.offsetTop - 80, behavior: 'smooth' });
+                targetEl.classList.add('card-focus-highlight');
+                setTimeout(() => targetEl.classList.remove('card-focus-highlight'), 1200);
+            }
+            return;
+        }
+        const batchRow = e.target.closest('.batch-tts-row');
+        if (batchRow && !e.target.closest('button,input')) {
+            const cardId = batchRow.dataset.cardId || '';
+            const linesWrap = $('.batch-tts-lines', batchRow);
+            if (linesWrap) {
+                const willOpen = linesWrap.classList.contains('hidden');
+                linesWrap.classList.toggle('hidden');
+                const toggleBtn = document.querySelector(`.batch-tts-toggle-btn[data-card-id="${cardId}"]`);
+                if (toggleBtn) toggleBtn.textContent = willOpen ? '收起' : '展开';
+                return;
+            }
+        }
+        if (!a) return;
+        const act = a.dataset.action, card = a.closest('.card-item');
+
+        if (act === 'toggle-preset-chip') {
+            // 仅以 chip 的 active 状态作为选中状态源（不再渲染右侧 tag）
+            a.classList.toggle('active');
+            updatePreview(card.id);
+            return;
+        }
+
+
+        if (act === 'add-card') addCard();
+        if (act === 'open-path-modal') { openPathModal(); return; }
+        if (act === 'close-path-modal') { hideModal($('#pathModal')); return; }
+        if (act === 'path-save-cfg') {
+            const cfg = loadComfyCfg();
+            cfg.autoSaveEnabled = !!document.getElementById('comfyAutoSaveEnabled')?.checked;
+            saveComfyCfg(cfg);
+            alert('路径设置已保存');
+            return;
+        }
+        if (act === 'open-tts-modal') { await openTtsModal(); return; }
+        if (act === 'close-tts-modal') { hideModal($('#ttsModal')); return; }
+        if (act === 'tts-save-settings') {
+            const cfg = collectTtsSettingsFromUI();
+            if (!cfg.voice) { alert('请选择音色'); return; }
+            saveTtsSettings(cfg);
+            alert('语音设置已保存');
+            return;
+        }
+        if (act === 'open-comfy-modal') { openComfyModal(); return; }
+        if (act === 'close-comfy-modal') { hideModal($('#comfyModal')); return; }
+        if (act === 'open-segment-modal') {
+            renderSegmentPresetOptions();
+            if ($('#segLiveOutput')) $('#segLiveOutput').value = '';
+            if ($('#segmentStopBtn')) $('#segmentStopBtn').disabled = true;
+            showModal($('#segmentModal'));
+        }
+        if (act === 'close-segment-modal') {
+            if (segmentAbortController) segmentAbortController.abort();
+            hideModal($('#segmentModal'));
+        }
+        if (act === 'run-segment') { await runAISegmentAndCreateCards(); return; }
+        if (act === 'stop-segment') { if (segmentAbortController) segmentAbortController.abort(); return; }
+        if (act === 'open-segment-log-modal') { renderSegmentLogList(); showModal($('#segmentLogModal')); return; }
+        if (act === 'close-segment-log-modal') { hideModal($('#segmentLogModal')); return; }
+        if (act === 'clear-segment-logs') {
+            if (confirm('确认清空所有 AI 分词日志？')) {
+                saveSegmentLogs([]);
+                renderSegmentLogList();
+            }
+            return;
+        }
+        if (act === 'view-segment-log') {
+            const logs = loadSegmentLogs();
+            const hit = logs.find(i => i.id === a.dataset.logId);
+            if (!hit) return;
+            $('#segmentLogMeta').textContent = `${new Date(hit.time).toLocaleString()} · ${hit.presetName || '未命名预设'} · ${hit.ok ? '成功' : '失败'} · 记录：${hit.recordCount || 0}`;
+            $('#segmentLogRaw').value = hit.raw || '';
+            return;
+        }
+        if (act === 'delete-segment-log') {
+            const id = a.dataset.logId;
+            if (!id) return;
+            const logs = loadSegmentLogs();
+            const next = logs.filter(i => i.id !== id);
+            saveSegmentLogs(next);
+            renderSegmentLogList();
+            return;
+        }
+        if (act === 'open-batch-polish-modal') openBatchModal('polish');
+        if (act === 'open-batch-tts-modal') { renderBatchTtsList(); showModal($('#batchTtsModal')); return; }
+        if (act === 'open-batch-image-modal') openBatchModal('image');
+        if (act === 'open-export-images-modal') openBatchModal('export-images');
+        if (act === 'close-process-modal') hideModal($('#processModal'));
+        if (act === 'close-batch-tts-modal') {
+            if (batchTtsRunning) return;
+            const player = document.getElementById('batchTtsPreviewAudio');
+            if (player) {
+                player.pause();
+                player.removeAttribute('src');
+            }
+            $$('[data-action="batch-tts-play-line"]').forEach(b => b.textContent = '播放');
+            hideModal($('#batchTtsModal'));
+            return;
+        }
+        if (act === 'batch-tts-select-all') {
+            $$('.batch-tts-card-check').forEach(i => i.checked = true);
+            $$('.batch-tts-line-check').forEach(i => i.checked = true);
+            return;
+        }
+        if (act === 'batch-tts-unselect-all') {
+            $$('.batch-tts-card-check').forEach(i => i.checked = false);
+            $$('.batch-tts-line-check').forEach(i => i.checked = false);
+            return;
+        }
+        if (act === 'batch-tts-toggle-lines') {
+            const cardId = a.dataset.cardId || '';
+            const row = document.querySelector(`.batch-tts-row[data-card-id="${cardId}"]`);
+            const linesWrap = row ? $('.batch-tts-lines', row) : null;
+            if (!linesWrap) return;
+            const willOpen = linesWrap.classList.contains('hidden');
+            linesWrap.classList.toggle('hidden');
+            a.textContent = willOpen ? '收起' : '展开';
+            return;
+        }
+        if (act === 'batch-tts-run-selected') { await runBatchTts({ convertAll: false, includeConverted: true }); return; }
+        if (act === 'batch-tts-run-all') { await runBatchTts({ convertAll: true, includeConverted: false }); return; }
+        if (act === 'batch-tts-run-all-overwrite') { await runBatchTts({ convertAll: true, includeConverted: true }); return; }
+        if (act === 'batch-tts-convert-line') {
+            const cardId = a.dataset.cardId || '';
+            const lineIndex = Number(a.dataset.lineIndex || -1);
+            const item = getBatchTtsCandidates().find(i => i.id === cardId);
+            const ttsCfg = loadTtsSettings();
+            if (!item || !Number.isFinite(lineIndex) || lineIndex < 0 || lineIndex >= item.lines.length) return;
+            if (!ttsCfg.voice) { alert('请先在语音设置中选择音色'); return; }
+            const oldText = a.textContent;
+            a.disabled = true;
+            a.textContent = '转换中';
+            setBatchTtsLineStatus(cardId, lineIndex, '转换中...', 'text-sky-600');
+            if ($('#batchTtsProgressText')) $('#batchTtsProgressText').textContent = `正在转换：分镜${item.idx} 第${lineIndex + 1}条`;
+            try {
+                const blob = await synthesizeTtsBlobForText(item.lines[lineIndex], ttsCfg);
+                setCardTtsBlobAtLine(item.card, lineIndex, blob);
+                setCardTaskStatus(item.card, 'tts', 'completed');
+                updateBatchTtsRowProgress(cardId);
+                setBatchTtsLineStatus(cardId, lineIndex, '已转换', 'text-emerald-600');
+                setBatchTtsPlayBtnState(cardId, lineIndex, true);
+                if ($('#batchTtsProgressText')) $('#batchTtsProgressText').textContent = `转换成功：分镜${item.idx} 第${lineIndex + 1}条`;
+            } catch (err) {
+                console.error(err);
+                updateBatchTtsRowProgress(cardId);
+                setBatchTtsLineStatus(cardId, lineIndex, '失败', 'text-rose-500');
+                setBatchTtsPlayBtnState(cardId, lineIndex, false);
+                if ($('#batchTtsProgressText')) $('#batchTtsProgressText').textContent = `转换失败：分镜${item.idx} 第${lineIndex + 1}条`;
+            } finally {
+                a.disabled = false;
+                a.textContent = oldText || '转换';
+            }
+            return;
+        }
+        if (act === 'batch-tts-play-line') {
+            const cardId = a.dataset.cardId || '';
+            const lineIndex = Number(a.dataset.lineIndex || -1);
+            const item = getBatchTtsCandidates().find(i => i.id === cardId);
+            if (!item || !Number.isFinite(lineIndex) || lineIndex < 0) return;
+            const url = getCardTtsUrlAtLine(item.card, lineIndex);
+            if (!url) return;
+            const player = document.getElementById('batchTtsPreviewAudio');
+            if (!player) return;
+            const current = player.getAttribute('src') || '';
+            if (!player.paused && current === url) {
+                player.pause();
+                a.textContent = '播放';
+                return;
+            }
+            player.src = url;
+            await player.play().catch(() => {});
+            $$('[data-action="batch-tts-play-line"]').forEach(b => b.textContent = '播放');
+            a.textContent = '暂停';
+            player.onended = () => { a.textContent = '播放'; };
+            player.onpause = () => {
+                if (player.currentTime < (player.duration || 0)) a.textContent = '播放';
+            };
+            return;
+        }
+        if (act === 'confirm-process') {
+            const start = parseInt($('#rangeStart').value) - 1, end = parseInt($('#rangeEnd').value) - 1, cards = $$('.card-item');
+            if (start < 0 || end >= cards.length || start > end) { alert("范围错误"); return; }
+            hideModal($('#processModal'));
+            if (batchMode === 'export-images') {
+                await exportImagesByRange(start, end);
+                return;
+            }
+            for(let i = start; i <= end; i++) {
+                const c = cards[i];
+                if (batchMode === 'image') {
+                    const hasCore = !!(($('.row-image-prompt', c)?.value || '').trim());
+                    const hasPolished = !!(($('.res-content', c)?.value || '').trim());
+                    if (!hasCore && !hasPolished) continue;
+                    try {
+                        await generateImageForCard(c);
+                    } catch (err) {
+                        console.error(err);
+                    }
+                    continue;
+                }
+                if (!$('.row-image-prompt', c).value.trim()) continue;
+                await generateForCard(c, $('[data-action="generate"]', c));
+            }
+        }
+        if (act === 'open-list') { currentType = a.dataset.type; renderItemList(); showModal($('#listModal')); }
+        if (act === 'close-list') hideModal($('#listModal'));
+        if (act === 'remove-card') {
+            const thumbWrap = $('.generated-thumb', card);
+            const oldUrl = thumbWrap?.dataset.objectUrl;
+            if (oldUrl) URL.revokeObjectURL(oldUrl);
+            clearCardTts(card);
+            card.remove();
+            refreshOutline();
+        }
+        if (act === 'toggle-preview') { $('.editor-container', card).classList.toggle('is-open'); }
+        if (act === 'reset-auto') { $('.editor-textarea', card).value = ''; updatePreview(card.id, false); }
+        if (act === 'generate') await generateForCard(card, a);
+        if (act === 'move-content-down') { moveContentLineBetweenCards(card, 'down'); return; }
+        if (act === 'move-content-up') { moveContentLineBetweenCards(card, 'up'); return; }
+        if (act === 'insert-card-below') { insertCardBelow(card, {}); return; }
+        if (act === 'tts-generate-all') {
+            try { await generateTtsForCard(card, a, { silent: true }); } catch (e) {}
+            return;
+        }
+        if (act === 'play-line-tts') {
+            const row = a.closest('.content-line-row');
+            if (!row) return;
+            const rows = $$('.content-line-row', card);
+            const idx = rows.indexOf(row);
+            if (idx < 0) return;
+            const audioEl = $('.tts-audio', card);
+            const current = Number(card._ttsCurrentLine ?? -1);
+            const lineText = ($('.content-line-input', row)?.value || '').trim();
+            const existingUrl = getCardTtsUrlAtLine(card, idx);
+            if (!existingUrl) {
+                if (!lineText) return;
+                await convertCardLineTts(card, row, a);
+                return;
+            }
+            if (audioEl && !audioEl.paused && current === idx) {
+                audioEl.pause();
+                card._ttsCurrentLine = -1;
+                updateCardLinePlayButtons(card);
+                return;
+            }
+            await playCardLineAudio(card, idx);
+            return;
+        }
+        if (act === 'reconvert-line-tts') {
+            const row = a.closest('.content-line-row');
+            if (!row) return;
+            await convertCardLineTts(card, row, a);
+            return;
+        }
+        if (act === 'pick-image') {
+            const input = $('.manual-image-input', card);
+            if (input) input.click();
+            return;
+        }
+
+        // ----- ComfyUI image generation per card -----
+        if (act === 'gen-image') {
+            try {
+                const ok = await generateImageForCard(card, a);
+                if (!ok) { alert('请先填写核心画面描述，或先完成 AI 润色'); }
+            } catch (err) {
+                console.error(err);
+                alert('出图失败：' + (err?.message || '未知错误') + '\n\n检查：ComfyUI URL / CORS / 工作流(API) / 正面节点 / SaveImage 输出');
+            }
+            return;
+        }
+        if (act === 'preview-image') {
+            const src = $('.gen-image-thumb', card)?.getAttribute('src');
+            if (!src) return;
+            $('#imagePreviewModalImg').src = src;
+            showModal($('#imagePreviewModal'));
+            return;
+        }
+        if (act === 'close-image-preview') {
+            hideModal($('#imagePreviewModal'));
+            return;
+        }
+        if (act === 'clear-image') {
+            const thumbWrap = $('.generated-thumb', card);
+            const thumbEl = $('.gen-image-thumb', card);
+            const hoverEl = $('.gen-image-hover', card);
+            const oldUrl = thumbWrap?.dataset.objectUrl;
+            if (oldUrl) URL.revokeObjectURL(oldUrl);
+            if (thumbWrap) {
+                delete thumbWrap.dataset.objectUrl;
+                thumbWrap.classList.remove('has-image');
+                thumbWrap.style.removeProperty('--thumb-ratio');
+            }
+            if (thumbEl) thumbEl.removeAttribute('src');
+            if (hoverEl) hoverEl.removeAttribute('src');
+            setCardTaskStatus(card, 'image', 'idle');
+            return;
+        }
+
+        // ----- ComfyUI config actions (in 管理/接口配置 modal) -----
+        if (act === 'comfy-pick-wf') { 
+            const inp = document.getElementById('comfyWfInput');
+            if (inp) inp.click();
+            return;
+        }
+        if (act === 'comfy-clear-wf') {
+            const cfg = loadComfyCfg();
+            cfg.workflow = null; cfg.posNode = ''; cfg.negNode = '';
+            cfg.mapWidth = ''; cfg.mapHeight = ''; cfg.mapSeed = ''; cfg.mapSteps = '';
+            cfg.mapCfg = ''; cfg.mapSampler = ''; cfg.mapScheduler = ''; cfg.mapModel = '';
+            cfg.mapLoraName = ''; cfg.mapLoraStrength = ''; cfg.mapLoraClipStrength = '';
+            saveComfyCfg(cfg);
+            fillComfyNodeSelect(document.getElementById('comfyPosNode'), [], '');
+            fillComfyNodeSelect(document.getElementById('comfyNegNode'), [], '');
+            populateComfyAdvancedMappings(cfg);
+            return;
+        }
+        if (act === 'comfy-pick-export-dir' || act === 'comfy-pick-csv-dir' || act === 'comfy-pick-project-dir' || act === 'comfy-pick-auto-image-dir') {
+            if (!window.showDirectoryPicker) {
+                alert('当前浏览器不支持目录选择，请使用 Chromium 内核浏览器。');
+                return;
+            }
+            const cfg = loadComfyCfg();
+            try {
+                if (act === 'comfy-pick-export-dir') {
+                    const h = await pickDirectoryAndStore(DIR_KEY_EXPORT_IMAGES);
+                    exportImageDirHandle = h;
+                    cfg.exportImagePathLabel = h.name || '';
+                    const p = document.getElementById('comfyExportImagePath');
+                    if (p) p.value = cfg.exportImagePathLabel;
+                }
+                if (act === 'comfy-pick-csv-dir') {
+                    const h = await pickDirectoryAndStore(DIR_KEY_EXPORT_CSV);
+                    exportCsvDirHandle = h;
+                    cfg.exportCsvPathLabel = h.name || '';
+                    const p = document.getElementById('comfyExportCsvPath');
+                    if (p) p.value = cfg.exportCsvPathLabel;
+                }
+                if (act === 'comfy-pick-project-dir') {
+                    const h = await pickDirectoryAndStore(DIR_KEY_PROJECT_SAVE);
+                    projectSaveDirHandle = h;
+                    cfg.projectSavePathLabel = h.name || '';
+                    const p = document.getElementById('comfyProjectSavePath');
+                    if (p) p.value = cfg.projectSavePathLabel;
+                }
+                if (act === 'comfy-pick-auto-image-dir') {
+                    const h = await pickDirectoryAndStore(DIR_KEY_AUTO_IMAGE);
+                    autoSaveImageDirHandle = h;
+                    cfg.autoSaveImagePathLabel = h.name || '';
+                    const p = document.getElementById('comfyAutoSaveImagePath');
+                    if (p) p.value = cfg.autoSaveImagePathLabel;
+                }
+                saveComfyCfg(cfg);
+            } catch (err) {
+                console.error(err);
+            }
+            return;
+        }
+        if (act === 'comfy-save-cfg') {
+            const cfg = loadComfyCfg();
+            const url = (document.getElementById('comfyUrl')?.value || '').trim() || 'http://127.0.0.1:8188';
+            const posNode = document.getElementById('comfyPosNode')?.value || '';
+            const negNode = document.getElementById('comfyNegNode')?.value || '';
+            cfg.mapWidth = document.getElementById('comfyMapWidth')?.value || '';
+            cfg.mapHeight = document.getElementById('comfyMapHeight')?.value || '';
+            cfg.mapSeed = document.getElementById('comfyMapSeed')?.value || '';
+            cfg.mapSteps = document.getElementById('comfyMapSteps')?.value || '';
+            cfg.mapCfg = document.getElementById('comfyMapCfg')?.value || '';
+            cfg.mapSampler = document.getElementById('comfyMapSampler')?.value || '';
+            cfg.mapScheduler = document.getElementById('comfyMapScheduler')?.value || '';
+            cfg.mapModel = document.getElementById('comfyMapModel')?.value || '';
+            cfg.mapLoraName = document.getElementById('comfyMapLoraName')?.value || '';
+            cfg.mapLoraStrength = document.getElementById('comfyMapLoraStrength')?.value || '';
+            cfg.mapLoraClipStrength = document.getElementById('comfyMapLoraClipStrength')?.value || '';
+            cfg.valWidth = (document.getElementById('comfyValWidth')?.value || '').trim();
+            cfg.valHeight = (document.getElementById('comfyValHeight')?.value || '').trim();
+            cfg.valSeed = (document.getElementById('comfyValSeed')?.value || '').trim();
+            cfg.valSteps = (document.getElementById('comfyValSteps')?.value || '').trim();
+            cfg.valCfg = (document.getElementById('comfyValCfg')?.value || '').trim();
+            cfg.valSampler = (document.getElementById('comfyValSampler')?.value || '').trim();
+            cfg.valScheduler = (document.getElementById('comfyValScheduler')?.value || '').trim();
+            cfg.valModel = (document.getElementById('comfyValModel')?.value || '').trim();
+            cfg.valLoraName = (document.getElementById('comfyValLoraName')?.value || '').trim();
+            cfg.valLoraStrength = (document.getElementById('comfyValLoraStrength')?.value || '').trim();
+            cfg.valLoraClipStrength = (document.getElementById('comfyValLoraClipStrength')?.value || '').trim();
+            cfg.url = url; cfg.posNode = posNode; cfg.negNode = negNode;
+            saveComfyCfg(cfg);
+            alert('ComfyUI 设置已保存');
+            return;
+        }
+
+        if (act === 'copy') { navigator.clipboard.writeText($('.res-content', card).value); a.textContent = "已复制"; setTimeout(()=>a.textContent="复制", 1000); }
+        if (act === 'open-edit') openEditModal(currentType, -1);
+        if (act === 'edit-item') openEditModal(currentType, Number(a.dataset.index));
+        if (act === 'delete-item') { if(confirm("删除预设？")){ repo[currentType].splice(Number(a.dataset.index),1); saveRepo(); renderItemList(); } }
+        if (act === 'cancel-edit') hideModal($('#editModal'));
+        if (act === 'confirm-save') confirmSave();
+        if (act === 'backup') { await exportProjectFile(); }
+        if (act === 'open-restore') $('#restoreInput').click();
+        if (act === 'open-csv') $('#csvInput').click();
+        if (act === 'export-csv') await exportCSV();
+    });
+
+    document.addEventListener('change', (e) => {
+        const el = e.target;
+        if (el.classList?.contains('batch-tts-card-check')) {
+            const cardId = el.dataset.cardId || '';
+            $$(`.batch-tts-line-check[data-card-id="${cardId}"]`).forEach(ch => ch.checked = !!el.checked);
+        }
+        if (el.classList?.contains('batch-tts-line-check')) {
+            const cardId = el.dataset.cardId || '';
+            const all = $$(`.batch-tts-line-check[data-card-id="${cardId}"]`);
+            const cardChk = document.querySelector(`.batch-tts-card-check[data-card-id="${cardId}"]`);
+            if (cardChk) cardChk.checked = all.length ? all.every(ch => ch.checked) : false;
+        }
+        if (el.id === 'apiPresetSelect') { currentAPI = repo.api[el.value] || null; $('#apiStatusDot').className = currentAPI ? 'w-1.5 h-1.5 rounded-full bg-emerald-500 mx-1' : 'w-1.5 h-1.5 rounded-full bg-slate-300 mx-1'; }
+        if (el.id === 'ttsLocaleFilter') {
+            renderTtsVoiceOptions(el.value || 'all');
+            const cfg = loadTtsSettings();
+            if (cfg.voice) $('#ttsVoiceSelect').value = cfg.voice;
+        }
+        if (el.id === 'ttsRateRange' || el.id === 'ttsVolumeRange' || el.id === 'ttsPitchRange' || el.id === 'ttsRateInput' || el.id === 'ttsVolumeInput' || el.id === 'ttsPitchInput') {
+            syncTtsNumericControls(el.id);
+            updateTtsRangeLabels();
+        }
+        if (el.matches('[data-action="sync-all"]')) { 
+            const type = el.dataset.type, val = el.value; if(!val) return;
+            $$('.card-item').forEach(c => {
+                const chip = $$( `.preset-chip[data-type="${type}"]`, c ).find(ch => ch.dataset.name === val);
+                if (chip) chip.classList.add('active');
+                updatePreview(c.id);
+            });
+            el.value = ''; 
+        }
+        if (el.id === 'restoreInput' && el.files[0]) { 
+            const r = new FileReader();
+            r.onload = (ev) => {
+                try {
+                    const parsed = JSON.parse(ev.target.result);
+                    importProjectData(parsed);
+                    alert('工程导入完成');
+                } catch(e) {
+                    console.error(e);
+                    alert("导入失败：文件格式不正确");
+                }
+            };
+            r.readAsText(el.files[0]); 
+            el.value = '';
+        }
+        if (el.id === 'csvInput' && el.files[0]) importCSV(el.files[0]);
+        if (el.matches('.manual-image-input') && el.files && el.files[0]) {
+            const card = el.closest('.card-item');
+            const file = el.files[0];
+            if (card && file && file.type && file.type.startsWith('image/')) {
+                setCardImage(card, URL.createObjectURL(file));
+            }
+            el.value = '';
+        }
+
+        // ComfyUI workflow upload
+        if (el.id === 'comfyWfInput' && el.files && el.files[0]) {
+            const file = el.files[0];
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const raw = JSON.parse(ev.target.result);
+                    const wf = (raw && raw.prompt && typeof raw.prompt === 'object') ? raw.prompt : raw;
+                    const cfg = loadComfyCfg();
+                    cfg.workflow = wf;
+
+                    const nodes = findComfyTextNodes(wf);
+                    // 默认：第一个作为正面，第二个作为负面（如果有）
+                    cfg.posNode = cfg.posNode || (nodes[0]?.id || '');
+                    cfg.negNode = cfg.negNode || (nodes[1]?.id || '');
+
+                    // 重新渲染节点下拉
+                    fillComfyNodeSelect(document.getElementById('comfyPosNode'), nodes, cfg.posNode);
+                    fillComfyNodeSelect(document.getElementById('comfyNegNode'), nodes, cfg.negNode);
+                    populateComfyAdvancedMappings(cfg);
+                    hydrateComfyValuesFromWorkflow(cfg, false);
+                    saveComfyCfg(cfg);
+
+                    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v ?? ''; };
+                    setVal('comfyValWidth', cfg.valWidth);
+                    setVal('comfyValHeight', cfg.valHeight);
+                    setVal('comfyValSeed', cfg.valSeed);
+                    setVal('comfyValSteps', cfg.valSteps);
+                    setVal('comfyValCfg', cfg.valCfg);
+                    setVal('comfyValSampler', cfg.valSampler);
+                    setVal('comfyValScheduler', cfg.valScheduler);
+                    setVal('comfyValModel', cfg.valModel);
+                    setVal('comfyValLoraName', cfg.valLoraName);
+                    setVal('comfyValLoraStrength', cfg.valLoraStrength);
+                    setVal('comfyValLoraClipStrength', cfg.valLoraClipStrength);
+                    updateComfyCfgBadge();
+                    alert('工作流已加载：text节点 ' + nodes.length + ' 个');
+                } catch (e) {
+                    console.error(e);
+                    alert('工作流解析失败：请确认是 ComfyUI 的 Save (API Format) JSON');
+                } finally {
+                    // 允许重复选择同一个文件
+                    el.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+    });
+    document.addEventListener('input', (e) => {
+        const el = e.target;
+        if (el.id === 'ttsRateRange' || el.id === 'ttsVolumeRange' || el.id === 'ttsPitchRange' || el.id === 'ttsRateInput' || el.id === 'ttsVolumeInput' || el.id === 'ttsPitchInput') {
+            syncTtsNumericControls(el.id);
+            updateTtsRangeLabels();
+        }
+    });
+
+    function renderItemList(){
+      const list = (repo[currentType] || []);
+      $('#itemList').innerHTML = list.map((item, index) =>
+        `<div class="flex justify-between p-3 bg-slate-50 rounded-xl hover:bg-slate-100">
+          <div class="text-sm font-bold text-slate-700">${escapeHtml(item.name)}</div>
+          <div class="flex gap-4">
+            <button data-action="edit-item" data-index="${index}" class="text-indigo-600 text-xs font-bold">编辑</button>
+            <button data-action="delete-item" data-index="${index}" class="text-red-500 text-xs font-bold">删除</button>
+          </div>
+        </div>`
+      ).join('');
+    }
+    
+    function openEditModal(type, index=-1){
+      currentType = type; editingIndex = index; const item = index !== -1 ? repo[type][index] : null;
+      let h = `<h3 class="text-xl font-bold mb-8 tracking-tighter">${index === -1 ? '新增' : '编辑'}${types.find(t=>t.id===type).label}</h3><div class="space-y-5">`;
+      if (type === 'api'){ h += `<input id="m_name" placeholder="名称" class="input-flat" value="${escapeHtml(item?.name)}"><input id=\"m_url\" placeholder=\"URL\" class=\"input-flat\" value=\"${escapeHtml(item?.url || 'https://api.openai.com/v1')}\"><input id=\"m_key\" type=\"password\" placeholder=\"Key\" class=\"input-flat\" value=\"${escapeHtml(item?.key)}\"><input id=\"m_model\" placeholder=\"Model\" class=\"input-flat\" value=\"${escapeHtml(item?.model || 'gpt-4o')}\">`; } 
+      else { h += `<input id="m_name" placeholder="名称" class="input-flat font-bold" value="${escapeHtml(item?.name)}"><textarea id="m_content" rows="6" placeholder="内容" class="input-flat">${escapeHtml(item?.content)}</textarea>`; }
+      h += `</div><div class="flex gap-4 mt-10"><button data-action="cancel-edit" class="flex-1 py-4 text-slate-400 font-bold">取消</button><button data-action="confirm-save" class="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg">保存</button></div>`;
+      $('#editModalContent').innerHTML = h; showModal($('#editModal'));
+    }
+
+    function confirmSave(){
+      const name = ($('#m_name')?.value || '').trim(); if (!name) return;
+      const data = { name };
+      if (currentType === 'api'){ data.url = $('#m_url').value.trim(); data.key = $('#m_key').value.trim(); data.model = $('#m_model').value.trim(); } 
+      else { data.content = $('#m_content').value; }
+      if (editingIndex === -1) repo[currentType].push(data); else repo[currentType][editingIndex] = data;
+      saveRepo(); 
+      hideModal($('#editModal')); renderItemList();
+    }
+
+    function blobToDataURL(blob){
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function imageSrcToDataURL(src){
+      if (!src) return '';
+      if (src.startsWith('data:')) return src;
+      try {
+        const blob = await fetch(src).then(r => r.blob());
+        return await blobToDataURL(blob);
+      } catch (err) {
+        console.error(err);
+        return '';
+      }
+    }
+
+    function getCardPresetNames(cardEl, typeId){
+      return $$(`.preset-chip[data-type="${typeId}"].active`, cardEl).map(ch => ch.dataset.name).filter(Boolean);
+    }
+
+    async function exportProjectFile(){
+      const cards = $$('.card-item');
+      const cardData = [];
+      const imageFilePayload = [];
+      for (let i = 0; i < cards.length; i++) {
+        const c = cards[i];
+        const imageSrc = $('.gen-image-thumb', c)?.getAttribute('src') || '';
+        const imageBlob = imageSrc ? await srcToBlob(imageSrc) : null;
+        if (imageBlob) {
+          imageFilePayload.push({
+            filename: `分镜${i + 1}${extFromType(imageBlob.type)}`,
+            blob: imageBlob
+          });
+        }
+        cardData.push({
+          index: $('.row-index', c)?.value || String(i + 1),
+          content: $('.row-content-display', c)?.value || '',
+          imagePrompt: $('.row-image-prompt', c)?.value || '',
+          editorText: $('.editor-textarea', c)?.value || '',
+          resultText: $('.res-content', c)?.value || '',
+          presets: {
+            role: getCardPresetNames(c, 'role'),
+            scene: getCardPresetNames(c, 'scene'),
+            instruction: getCardPresetNames(c, 'instruction')
+          },
+          imageDataUrl: await imageSrcToDataURL(imageSrc)
+        });
+      }
+
+      const payload = {
+        format: 'prompt_studio_project_v1',
+        exportedAt: new Date().toISOString(),
+        repo,
+        comfyCfg: loadComfyCfg(),
+        selectedApiIndex: $('#apiPresetSelect')?.value ?? '',
+        cards: cardData
+      };
+
+      const jsonBlob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      const projectDir = await getDirectoryHandleByMode('project-save', true);
+      const jsonName = `PromptStudio_Project_${Date.now()}.json`;
+      if (projectDir) {
+        try {
+          const stamp = new Date();
+          const pad = (n) => String(n).padStart(2, '0');
+          const folderName = `工程_${stamp.getFullYear()}${pad(stamp.getMonth()+1)}${pad(stamp.getDate())}_${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}`;
+          const projectFolder = await projectDir.getDirectoryHandle(folderName, { create: true });
+
+          await writeBlobToDir(projectFolder, jsonName, jsonBlob);
+          for (const item of imageFilePayload) await writeBlobToDir(projectFolder, item.filename, item.blob);
+          const cfg = loadComfyCfg();
+          const pathLabel = cfg.projectSavePathLabel ? `\n保存位置：${cfg.projectSavePathLabel}` : '';
+          alert(`工程导出完成：${folderName}\nJSON：${jsonName}\n图片：${imageFilePayload.length} 张。${pathLabel}`);
+          return;
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(jsonBlob);
+      link.download = jsonName;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+    }
+
+    function applyPresetNames(cardEl, typeId, names){
+      if (!Array.isArray(names)) return;
+      names.forEach(name => {
+        const chip = $$( `.preset-chip[data-type="${typeId}"]`, cardEl ).find(ch => ch.dataset.name === name);
+        if (chip) chip.classList.add('active');
+      });
+    }
+
+    function importProjectData(data){
+      if (!data || typeof data !== 'object') throw new Error('工程文件格式无效');
+
+      // 兼容旧版仅 repo 备份
+      const hasProjectCards = Array.isArray(data.cards);
+      if (!hasProjectCards && data.role && data.scene && data.instruction && data.api) {
+        repo = normalizeRepo(data);
+        saveRepo();
+        location.reload();
+        return;
+      }
+
+      if (!hasProjectCards) throw new Error('未识别到可导入的工程数据');
+
+      repo = normalizeRepo(data.repo);
+      saveRepo();
+
+      if (data.comfyCfg && typeof data.comfyCfg === 'object') {
+        saveComfyCfg({
+          url: data.comfyCfg.url || 'http://127.0.0.1:8188',
+          workflow: data.comfyCfg.workflow || null,
+          posNode: data.comfyCfg.posNode || '',
+          negNode: data.comfyCfg.negNode || '',
+          mapWidth: data.comfyCfg.mapWidth || '',
+          mapHeight: data.comfyCfg.mapHeight || '',
+          mapSeed: data.comfyCfg.mapSeed || '',
+          mapSteps: data.comfyCfg.mapSteps || '',
+          mapCfg: data.comfyCfg.mapCfg || '',
+          mapSampler: data.comfyCfg.mapSampler || '',
+          mapScheduler: data.comfyCfg.mapScheduler || '',
+          mapModel: data.comfyCfg.mapModel || '',
+          mapLoraName: data.comfyCfg.mapLoraName || '',
+          mapLoraStrength: data.comfyCfg.mapLoraStrength || '',
+          mapLoraClipStrength: data.comfyCfg.mapLoraClipStrength || '',
+          valWidth: data.comfyCfg.valWidth ?? '',
+          valHeight: data.comfyCfg.valHeight ?? '',
+          valSeed: data.comfyCfg.valSeed ?? '',
+          valSteps: data.comfyCfg.valSteps ?? '',
+          valCfg: data.comfyCfg.valCfg ?? '',
+          valSampler: data.comfyCfg.valSampler ?? '',
+          valScheduler: data.comfyCfg.valScheduler ?? '',
+          valModel: data.comfyCfg.valModel ?? '',
+          valLoraName: data.comfyCfg.valLoraName ?? '',
+          valLoraStrength: data.comfyCfg.valLoraStrength ?? '',
+          valLoraClipStrength: data.comfyCfg.valLoraClipStrength ?? '',
+          exportImagePathLabel: data.comfyCfg.exportImagePathLabel || data.comfyCfg.savePathLabel || '',
+          exportCsvPathLabel: data.comfyCfg.exportCsvPathLabel || '',
+          projectSavePathLabel: data.comfyCfg.projectSavePathLabel || '',
+          autoSaveImagePathLabel: data.comfyCfg.autoSaveImagePathLabel || '',
+          autoSaveEnabled: data.comfyCfg.autoSaveEnabled !== false
+        });
+      }
+
+      $('#cardContainer').innerHTML = '';
+      data.cards.forEach((item, idx) => {
+        const cardEl = addCard({
+          index: item?.index || String(idx + 1),
+          imagePrompt: item?.imagePrompt || '',
+          content: item?.content || ''
+        });
+
+        if (item?.presets) {
+          applyPresetNames(cardEl, 'role', item.presets.role);
+          applyPresetNames(cardEl, 'scene', item.presets.scene);
+          applyPresetNames(cardEl, 'instruction', item.presets.instruction);
+        }
+        if (typeof item?.editorText === 'string') $('.editor-textarea', cardEl).value = item.editorText;
+        if (typeof item?.resultText === 'string' && item.resultText.trim()) {
+          $('.result-area', cardEl).classList.remove('hidden');
+          $('.res-content', cardEl).value = item.resultText;
+        }
+        if (typeof item?.imageDataUrl === 'string' && item.imageDataUrl.startsWith('data:image/')) {
+          setCardImage(cardEl, item.imageDataUrl, { autoSave: false });
+        }
+      });
+
+      if (data.selectedApiIndex !== undefined && data.selectedApiIndex !== null) {
+        const idx = String(data.selectedApiIndex);
+        $('#apiPresetSelect').value = idx;
+        currentAPI = repo.api[idx] || null;
+        $('#apiStatusDot').className = currentAPI ? 'w-1.5 h-1.5 rounded-full bg-emerald-500 mx-1' : 'w-1.5 h-1.5 rounded-full bg-slate-300 mx-1';
+      }
+
+      refreshOutline();
+    }
+
+    async function exportCSV(){
+      let csv = "\ufeff序号,图片提示词,视频提示词,首帧提示词,尾帧提示词,文案\n";
+      $$('.card-item').forEach((card, idx) => {
+        const f = (v) => `"${(v || "").toString().replace(/"/g, '""')}"`;
+        const indexVal = (idx + 1);
+        const imagePrompt = f($('.res-content', card).value);
+        const sourceText = f($('.row-content-display', card).value);
+        csv += `${indexVal},${imagePrompt},,,,${sourceText}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const filename = `Export_${Date.now()}.csv`;
+      const dir = await getDirectoryHandleByMode('export-csv', false);
+      if (dir) {
+        try {
+          await writeBlobToDir(dir, filename, blob);
+          const cfg = loadComfyCfg();
+          const pathLabel = cfg.exportCsvPathLabel ? `\n保存位置：${cfg.exportCsvPathLabel}` : '';
+          alert(`CSV 导出完成：${filename}${pathLabel}`);
+          return;
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+    }
+
+    function importCSV(file) {
+      if (typeof Papa === 'undefined' || !Papa?.parse) {
+        alert("CSV 解析库加载失败（PapaParse）。请检查网络或脚本引用。");
+        return;
+      }
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: false,
+        // 处理 UTF-8 BOM，并去掉表头首尾空格
+        transformHeader: (h) => (h || '').toString().replace(/^\uFEFF/, '').trim(),
+        complete: function(results) {
+          const data = results?.data || [];
+          if (!Array.isArray(data) || data.length === 0) {
+            alert("未解析到有效数据，请检查 CSV 格式。");
+            return;
+          }
+
+          $('#cardContainer').innerHTML = '';
+
+          data.forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+
+            // 兼容不同字段名（以本工具导出为主）
+            const idx = row["序号"] ?? row["编号"] ?? row["index"] ?? row["Index"] ?? '';
+            const img = row["图片提示词"] ?? row["image_prompt"] ?? row["Image Prompt"] ?? row["图片提示"] ?? '';
+            const content = row["文案"] ?? row["原始文案"] ?? row["content"] ?? row["Content"] ?? '';
+
+            // 全空行跳过
+            if ((idx === '' || idx == null) && !String(img || '').trim() && !String(content || '').trim()) return;
+
+            addCard({
+              index: String(idx ?? '').trim(),
+              imagePrompt: String(img ?? ''),
+              content: String(content ?? '')
+            });
+          });
+
+          refreshOutline();
+        },
+        error: function(err) {
+          console.error(err);
+          alert("CSV 解析失败，请检查文件是否为标准 CSV（支持单元格内换行/逗号/引号）。");
+        }
+      });
+    }
+
+
+
+    window.addEventListener('load', async () => {
+      await initSavedDirectoryHandles();
+      initRepoUI();
+      // 主工作区排序
+      Sortable.create($('#cardContainer'), { animation: 200, handle: '.drag-handle', onEnd: refreshOutline });
+      // 大纲排序修复：增加了 ghostClass 并确保拖拽后同步主卡片顺序
+      Sortable.create($('#sidebarOutline'), { 
+          animation: 200, 
+          ghostClass: 'sortable-ghost', 
+          onEnd: () => {
+              const items = Array.from($('#sidebarOutline').children), container = $('#cardContainer');
+              items.forEach(item => { 
+                  const card = document.getElementById(item.dataset.target); 
+                  if(card) container.appendChild(card); 
+              }); 
+              refreshOutline();
+          }
+      });
+      if ($('#cardContainer').children.length === 0) addCard();
+      if (repo.api?.length > 0) { currentAPI = repo.api[0]; $('#apiPresetSelect').value = 0; $('#apiStatusDot').className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 mx-1'; }
+      refreshOutline();
+      updateComfyCfgBadge();
+    });
+  </script>
+</body>
+</html>
